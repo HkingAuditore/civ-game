@@ -774,7 +774,7 @@ export const STATIC_DIPLOMATIC_EVENTS = [
               nationRelation: { random: -30 },
               nationAggression: { random: 0.2 },
             },
-            description: '我方支持的一方失败，新政权敌视我国。',
+            description: '我方支持的一方失败，新当局敌视我国。',
           },
         ],
       },
@@ -802,7 +802,7 @@ export const STATIC_DIPLOMATIC_EVENTS = [
             effects: {
               triggerWar: 'random',
             },
-            description: '新政权统一后立即向我方宣战！',
+            description: '新当局统一后立即向我方宣战！',
           },
         ],
       },

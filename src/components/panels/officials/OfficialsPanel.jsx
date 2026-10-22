@@ -233,7 +233,7 @@ export const OfficialsPanel = ({
         return filteredOfficials.slice(start, start + pageSize);
     }, [filteredOfficials, safePage, pageSize]);
 
-    // 统一在父层计算官员政治主张满足状态，避免列表/详情口径不一致和重复计算
+    // 统一在父层计算官员施政主张满足状态，避免列表/详情口径不一致和重复计算
     const stanceSatisfiedByOfficialId = useMemo(() => {
         const result = new Map();
         officials.forEach((official) => {

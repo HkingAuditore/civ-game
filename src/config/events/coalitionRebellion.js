@@ -31,12 +31,12 @@ export function createCoalitionRebelNation(
 ) {
     const strataNames = coalitionStrata.map(key => getStratumName(key));
 
-    // 生成联合政府名称
+    // 生成联合共治名称
     let coalitionName;
     if (coalitionStrata.length === 2) {
-        coalitionName = `${strataNames[0]}与${strataNames[1]}联合政府`;
+        coalitionName = `${strataNames[0]}与${strataNames[1]}联合共治`;
     } else if (coalitionStrata.length === 3) {
-        coalitionName = `${strataNames[0]}、${strataNames[1]}与${strataNames[2]}联合政府`;
+        coalitionName = `${strataNames[0]}、${strataNames[1]}与${strataNames[2]}联合共治`;
     } else {
         coalitionName = `人民联合革命政府`;
     }

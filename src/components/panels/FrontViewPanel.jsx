@@ -673,7 +673,7 @@ const FrontViewPanel = ({
                             <MetricBar label="补给率" value={Math.round(Number(ownState?.supplyRatio || 0) * 100)} maxValue={100} colorClass={Number(ownState?.supplyRatio || 0) >= 0.85 ? 'bg-emerald-400' : Number(ownState?.supplyRatio || 0) >= 0.65 ? 'bg-yellow-400' : 'bg-red-400'} suffix="%" />
                             <div className="mt-2 space-y-1">
                                 <MetricBar label="生产效率损失" value={Math.round(Number(ownEconomicImpact?.productionPenalty || 0) * 100)} maxValue={80} colorClass="bg-red-400" suffix="%" />
-                                <MetricBar label="税收效率损失" value={Math.round(Number(ownEconomicImpact?.taxEfficiencyPenalty || 0) * 100)} maxValue={85} colorClass="bg-orange-400" suffix="%" />
+                                <MetricBar label="征收效率损失" value={Math.round(Number(ownEconomicImpact?.taxEfficiencyPenalty || 0) * 100)} maxValue={85} colorClass="bg-orange-400" suffix="%" />
                             </div>
                             <div className="mt-2 grid gap-2">
                                 <div className="rounded-lg border border-gray-800/80 bg-black/20 px-2 py-1.5">
@@ -712,7 +712,7 @@ const FrontViewPanel = ({
                             <MetricBar label="补给率" value={Math.round(Number(enemyState?.supplyRatio || 0) * 100)} maxValue={100} colorClass={Number(enemyState?.supplyRatio || 0) >= 0.85 ? 'bg-emerald-400' : Number(enemyState?.supplyRatio || 0) >= 0.65 ? 'bg-yellow-400' : 'bg-red-400'} suffix="%" />
                             <div className="mt-2 space-y-1">
                                 <MetricBar label="生产效率损失" value={Math.round(Number(enemyEconomicImpact?.productionPenalty || 0) * 100)} maxValue={80} colorClass="bg-red-400" suffix="%" />
-                                <MetricBar label="税收效率损失" value={Math.round(Number(enemyEconomicImpact?.taxEfficiencyPenalty || 0) * 100)} maxValue={85} colorClass="bg-orange-400" suffix="%" />
+                                <MetricBar label="征收效率损失" value={Math.round(Number(enemyEconomicImpact?.taxEfficiencyPenalty || 0) * 100)} maxValue={85} colorClass="bg-orange-400" suffix="%" />
                             </div>
                             <div className="mt-2 grid gap-2">
                                 <div className="rounded-lg border border-gray-800/80 bg-black/20 px-2 py-1.5">

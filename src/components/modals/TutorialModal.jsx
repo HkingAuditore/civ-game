@@ -231,7 +231,7 @@ const StepContent = ({ step, onOpenWiki, isLastStep }) => {
 
             {isLastStep && !step.footerNote && (
                 <p className="text-center text-sm text-yellow-300 font-bold mt-3 leading-tight">
-                    祝你好运，伟大的统治者！
+                    祝你好运，伟大的缔造者！
                 </p>
             )}
         </div>

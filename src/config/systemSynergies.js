@@ -74,7 +74,7 @@ export const NATION_DECREE_SYNERGIES = {
     enhanced_decrees: {
       aristocratic_rule: {
         bonus: { efficiency: 0.15 },
-        desc: "中央集权传统提升贵族统治效率",
+        desc: "中央集权传统提升贵族治理效率",
       },
       guild_charter: {
         bonus: { categories: { craft: 0.1 } },
@@ -112,7 +112,7 @@ export const NATION_DECREE_SYNERGIES = {
     enhanced_decrees: {
       free_trade: {
         bonus: { tradeIncome: 0.2, passive: { silver: 2 } },
-        desc: "商业共和国最大化自由贸易收益",
+        desc: "商业共治最大化自由贸易收益",
       },
       patent_law: {
         bonus: { scienceBonus: 0.15, categories: { industry: 0.1 } },

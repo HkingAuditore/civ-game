@@ -19,7 +19,7 @@ export const DEMAND_TYPE = {
     TAX_RELIEF: 'tax_relief',       // 减税诉求
     SUBSIDY: 'subsidy',             // 补贴诉求
     RESOURCE: 'resource',           // 物资诉求
-    POLITICAL: 'political',         // 政治诉求
+    POLITICAL: 'political',         // 施政诉求
 };
 
 // 被动诉求类型，用于展示叛乱驱动力
@@ -44,7 +44,7 @@ export const DEMAND_CONFIG = {
         failurePenalty: {
             organization: 15,
             effect: '该阶层开始抗税',
-            description: '组织度 +15%，税收效率降低',
+            description: '组织度 +15%，征收效率降低',
         },
         duration: 30, // 默认持续30天
     },
@@ -79,7 +79,7 @@ export const DEMAND_CONFIG = {
         duration: 30,
     },
     [DEMAND_TYPE.POLITICAL]: {
-        name: '政治诉求',
+        name: '施政诉求',
         icon: 'Flag',
         color: 'text-purple-400',
         bgColor: 'bg-purple-900/20',
@@ -202,7 +202,7 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
     }
 
     // ========== 正确计算税负 ==========
-    // 1. 人头税（数值）= 基础人头税 × 人头税倍率 × 税收效率修正（与 economy/taxes.js 保持一致）
+    // 1. 人头税（数值）= 基础人头税 × 人头税倍率 × 征收效率修正（与 economy/taxes.js 保持一致）
     // 注意：实际征收还会受到“该阶层财富不足”的上限影响（无法从负资产里继续征税）
     const headTaxMultiplier = context.taxPolicies?.headTaxRates?.[stratumKey] ?? 0.05;
     const effectiveTaxModifier = context.effectiveTaxModifier ?? 1;
@@ -413,22 +413,22 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
         });
     }
 
-    // 合法性全局惩罚：当合法性不足时，simulation.js 会对所有阶层额外扣一段
-    // 注意：这里展示的是“当前合法性导致的估算惩罚”，方便解释“全体一起掉好感”
+    // 权威全局惩罚：当权威不足时，simulation.js 会对所有阶层额外扣一段
+    // 注意：这里展示的是“当前权威导致的估算惩罚”，方便解释“全体一起掉好感”
     const legitimacyApprovalModifier = context.legitimacyApprovalModifier || 0;
     if (legitimacyApprovalModifier < 0) {
         const contribution = Math.min(1.2, Math.abs(legitimacyApprovalModifier) / 15);
         sources.push({
             type: 'legitimacy',
             icon: 'Gavel',
-            label: '政府合法性不足',
+            label: '权威不足',
             detail: `${legitimacyApprovalModifier.toFixed(1)}（全阶层惩罚）`,
             contribution,
             severity: legitimacyApprovalModifier < -10 ? 'danger' : 'warning',
         });
     }
 
-    // 高影响力但低满意度（政治诉求）
+    // 高影响力但低满意度（施政诉求）
     // 调试：打印关键参数
     debugLog('demands', `[Demands] ${stratumKey}: influenceShare=${influenceShare.toFixed(3)}, approval=${approval}, totalInfluence=${totalInfluence}, influence=${influence}`);
     if (influenceShare > 0.1 && approval < 40) {
@@ -436,7 +436,7 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
         sources.push({
             type: 'political',
             icon: 'Flag',
-            label: '政治诉求',
+            label: '施政诉求',
             detail: `影响力 ${Math.round(influenceShare * 100)}%，满意度仅 ${Math.round(approval)}`,
             contribution,
             severity: 'warning',
@@ -471,9 +471,9 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
             sources.push({
                 type: 'lowApprovalCap',
                 icon: 'TrendingDown',
-                label: isCoalitionCap ? '执政联盟期望限制' : '满意度上限限制',
+                label: isCoalitionCap ? '联盟期望限制' : '满意度上限限制',
                 detail: isCoalitionCap
-                    ? `满意度被限制在 ${Number(effectiveCap).toFixed(0)}%（执政联盟成员想要更好的生活，提升生活水平可降低此惩罚）`
+                    ? `满意度被限制在 ${Number(effectiveCap).toFixed(0)}%（联盟成员想要更好的生活，提升生活水平可降低此惩罚）`
                     : `满意度被限制在 ${Number(effectiveCap).toFixed(0)}%（由生活水平+官员惩罚决定）`,
                 contribution: Math.min(2.0, (70 - effectiveCap) / 20),
                 severity: effectiveCap < 50 ? 'danger' : 'warning',
@@ -596,7 +596,7 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
             });
         }
 
-        // [NEW] 非法政府惩罚（合法性不足）
+        // [NEW] 权威不足惩罚（权威不足）
         // [FIX] 只有当 context.legitimacyApprovalModifier < 0 时才显示，避免显示过时的惩罚信息
         // （因为 approvalBill.legitimacyPenalty 可能是基于 previousLegitimacy 计算的旧值）
         const currentLegitimacyPenalty = context.legitimacyApprovalModifier ?? 0;
@@ -604,8 +604,8 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
             sources.push({
                 type: 'legitimacyPenalty',
                 icon: 'ShieldOff',
-                label: '非法政府惩罚',
-                detail: `${currentLegitimacyPenalty.toFixed(1)}（执政联盟影响力不足40%，政府被视为非法）`,
+                label: '权威不足惩罚',
+                detail: `${currentLegitimacyPenalty.toFixed(1)}（联盟影响力不足40%，政府被视为非法）`,
                 contribution: Math.min(1.5, Math.abs(currentLegitimacyPenalty) / 10),
                 severity: 'danger',
             });
@@ -625,13 +625,13 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
 
         // Cap applied (living standard / official negative effects)
         if (approvalBill.capApplied != null) {
-            // 执政联盟惩罚单独说明
+            // 联盟惩罚单独说明
             if (approvalBill.isCoalition && approvalBill.coalitionCapPenalty > 0) {
                 sources.push({
                     type: 'approvalCap',
                     icon: 'MinusCircle',
-                    label: '执政联盟期望压制',
-                    detail: `上限 ${Number(approvalBill.capApplied).toFixed(0)}%（执政联盟成员想要更好的生活，生活水平越低期望差距越大）`,
+                    label: '联盟期望压制',
+                    detail: `上限 ${Number(approvalBill.capApplied).toFixed(0)}%（联盟成员想要更好的生活，生活水平越低期望差距越大）`,
                     contribution: 1.0,
                     severity: 'warning',
                 });
@@ -688,7 +688,7 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
             type: 'unknown_low_approval',
             icon: 'HelpCircle',
             label: '满意度过低（来源未被分类）',
-            detail: '当前系统未在"短缺/税负/生活水平/事件/政令/合法性/税收冲击"中识别到直接原因。满意度可能来自长期惯性、财富趋势、失业惩罚、或其它事件链的间接影响。',
+            detail: '当前系统未在"短缺/税负/生活水平/事件/政令/权威/税收冲击"中识别到直接原因。满意度可能来自长期惯性、财富趋势、失业惩罚、或其它事件链的间接影响。',
             contribution: Math.min(2, (25 - approval) / 10),
             severity: approval < 10 ? 'danger' : 'warning',
         });
@@ -770,7 +770,7 @@ export function generateDemands(stratumKey, context) {
         });
     }
 
-    // 高影响力低满意度 -> 政治诉求
+    // 高影响力低满意度 -> 施政诉求
     const influence = context.classInfluence?.[stratumKey] || 0;
     const totalInfluence = context.totalInfluence || 1;
     const influenceShare = influence / totalInfluence;
@@ -842,7 +842,7 @@ export function checkDemandFulfillment(demand, context) {
         }
 
         case DEMAND_TYPE.POLITICAL: {
-            // 政治诉求需要特定政令或满意度达标
+            // 施政诉求需要特定政令或满意度达标
             const approval = context.classApproval?.[stratumKey] ?? 0;
             return {
                 fulfilled: approval >= 55,

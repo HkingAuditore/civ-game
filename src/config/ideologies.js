@@ -234,7 +234,7 @@ export const IDEOLOGIES = [
                     categories: { civic: 0.03 },
                     scienceBonus: -0.03,
                     converters: [
-                        // 合法性 → 稳定度（祖先赋予的正统性）
+                        // 权威 → 稳定度（祖先赋予的正统性）
                         { source: 'legitimacy', sourceType: 'legitimacy', ratio: 0.05, target: 'stability', cap: 8 },
                     ],
                     triggerEffects: [
@@ -249,7 +249,7 @@ export const IDEOLOGIES = [
                     cultureBonus: 0.05,
                     scienceBonus: -0.03,
                     converters: [
-                        // 合法性 → 稳定度+文化（祖先智慧传承）
+                        // 权威 → 稳定度+文化（祖先智慧传承）
                         { source: 'legitimacy', sourceType: 'legitimacy', ratio: 0.08, target: 'stability', cap: 12 },
                         { source: 'legitimacy', sourceType: 'legitimacy', ratio: 0.003, target: 'cultureBonus', cap: 0.30 },
                     ],
@@ -526,7 +526,7 @@ export const IDEOLOGIES = [
                     converters: [
                         // 农民人口 → 稳定度（君主权威下的服从）
                         { source: 'peasant', sourceType: 'population', ratio: 0.0000005, target: 'stability', cap: 8 },
-                        // 合法性 → 稳定度（君权神授的核心）
+                        // 权威 → 稳定度（君权神授的核心）
                         { source: 'legitimacy', sourceType: 'legitimacy', ratio: 0.06, target: 'stability', cap: 8 },
                     ],
                     triggerEffects: [
@@ -551,7 +551,7 @@ export const IDEOLOGIES = [
                         { source: 'peasant', sourceType: 'population', ratio: 0.0000008, target: 'stability', cap: 12 },
                         // 农民人口 → 税收（封建地租）
                         { source: 'peasant', sourceType: 'population', ratio: 0.0000006, target: 'taxIncome', cap: 0.20 },
-                        // 合法性 → 稳定度+税收（君权越巩固，统治越高效）
+                        // 权威 → 稳定度+税收（君权越巩固，统治越高效）
                         { source: 'legitimacy', sourceType: 'legitimacy', ratio: 0.10, target: 'stability', cap: 14 },
                         { source: 'legitimacy', sourceType: 'legitimacy', ratio: 0.004, target: 'taxIncome', cap: 0.18 },
                     ],
@@ -2240,8 +2240,8 @@ export const IDEOLOGIES = [
         icon: 'TreePine',
         color: 'text-orange-400',
         unlockEpoch: 3,
-        desc: '敌进我退，敌驻我扰，敌疲我打，敌退我追，让强大的敌人陷入无边的消耗。',
-        lore: '"星星之火，可以燎原。" ——毛泽东',
+        desc: '避实击虚，以走制敌。不争一城一地之得失，只在漫长的补给线上消磨强敌的锐气。',
+        lore: '"避其锐气，击其惰归。" ——孙武',
         rarity: 'uncommon',
         weightModifiers: [
             { condition: { stabilityBelow: 40 }, multiplier: 1.5 },
@@ -4137,8 +4137,8 @@ export const IDEOLOGIES = [
         icon: 'Sword',
         color: 'text-orange-400',
         unlockEpoch: 6,
-        desc: '敌人进攻，我们后退；敌人驻扎，我们骚扰；敌人疲惫，我们进攻；敌人后退，我们追击。',
-        lore: '"兵民是胜利之本。" ——毛泽东',
+        desc: '战争不只属于军队。当每一座村庄都是堡垒、每一条道路都是伏击点，占领者便寸步难行。',
+        lore: '"民众战争如云雾，不凝结成核。" ——克劳塞维茨',
         rarity: 'rare',
         weightModifiers: [],
         effects: {

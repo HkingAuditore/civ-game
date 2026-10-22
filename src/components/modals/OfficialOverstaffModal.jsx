@@ -32,14 +32,14 @@ const EFFECT_LABELS = {
     approval: '满意度',
     coalitionApproval: '联盟满意度',
     tradeBonus: '贸易利润',
-    taxEfficiency: '税收效率',
+    taxEfficiency: '征收效率',
     industryBonus: '工业产出',
     gatherBonus: '采集产出',
     researchSpeed: '科研产出',
     cultureBonus: '文化产出',
     populationGrowth: '人口增长',
     buildingCostMod: '建筑成本',
-    legitimacyBonus: '合法性',
+    legitimacyBonus: '权威',
     militaryUpkeep: '军事维护',
     wartimeProduction: '战时生产',
     diplomaticBonus: '外交关系',
@@ -188,7 +188,7 @@ const OfficialOverstaffModal = ({
                 {/* 说明 */}
                 <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 mb-3 flex-shrink-0">
                     <p className="text-sm text-gray-300">
-                        由于政体变更或其他原因，官员编制从 <span className="text-white font-bold">{currentCount}</span> 人
+                        由于体制变更或其他原因，官员编制从 <span className="text-white font-bold">{currentCount}</span> 人
                         降低至 <span className="text-white font-bold">{maxCapacity}</span> 人。
                     </p>
                     <p className="text-sm text-red-400 mt-2">

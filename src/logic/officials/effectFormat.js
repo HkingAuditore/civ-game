@@ -48,11 +48,11 @@ export const formatEffect = (type, target, value) => {
 
         // 贸易/税收
         case 'tradeBonus': description = `贸易利润 ${pct(value)}`; break;
-        case 'taxEfficiency': description = `税收效率 ${pct(value)}`; break;
+        case 'taxEfficiency': description = `征收效率 ${pct(value)}`; break;
         case 'taxIncome': description = `税收加成 ${pct(value)}`; break;
         case 'taxBonus': description = `税收加成 ${pct(value)}`; break;
 
-        // 立场产出（采集/工业产出，源自政治立场聚合）
+        // 立场产出（采集/工业产出，源自施政立场聚合）
         case 'gatherBonus': description = `采集产出 ${pct(value)}`; break;
         case 'industryBonus': description = `工业产出 ${pct(value)}`; break;
 
@@ -86,7 +86,7 @@ export const formatEffect = (type, target, value) => {
         // 满意度/稳定度
         case 'approval': description = `${targetName || '全体'}满意度 ${isPositive ? '+' : ''}${formatScalar(value)}`; break;
         case 'coalitionApproval': description = `联盟满意度 ${isPositive ? '+' : ''}${formatScalar(value)}`; break;
-        case 'legitimacyBonus': description = `合法性 ${pct(value)}`; break;
+        case 'legitimacyBonus': description = `权威 ${pct(value)}`; break;
         case 'stability': description = `稳定度 ${pct(value)}`; break;
 
         // 军事
@@ -221,7 +221,7 @@ export const CATEGORY_META = {
     economy: { name: '经济财政', icon: 'Coins', color: 'text-yellow-400' },
     demand: { name: '需求资源', icon: 'Package', color: 'text-cyan-400' },
     population: { name: '人口科研', icon: 'Users', color: 'text-sky-400' },
-    politics: { name: '政治稳定', icon: 'Landmark', color: 'text-purple-400' },
+    politics: { name: '局势稳定', icon: 'Landmark', color: 'text-purple-400' },
     military: { name: '军事', icon: 'Sword', color: 'text-red-400' },
     diplomacy: { name: '外交', icon: 'Globe', color: 'text-green-400' },
     other: { name: '其他', icon: 'Sparkles', color: 'text-gray-400' },

@@ -84,7 +84,7 @@ export const CIVIL_WAR_CONFIG = {
     MIN_DURATION: 60,
     MAX_DURATION: 365,
     
-    // 叛军初始实力（相对于政府军）
+    // 叛军初始实力（相对于官军）
     REBEL_INITIAL_STRENGTH: 0.4,
     
     // 每日战斗伤亡率
@@ -101,7 +101,7 @@ export const CIVIL_WAR_CONFIG = {
 };
 
 /**
- * 政体类型配置（用于政权更迭）
+ * 体制类型配置（用于政权更迭）
  */
 export const GOVERNMENT_TYPES = {
     monarchy: {
@@ -129,13 +129,13 @@ export const GOVERNMENT_TYPES = {
         possibleSuccessors: ['republic', 'monarchy', 'dictatorship'],
     },
     theocracy: {
-        name: '神权政治',
+        name: '神权体制',
         baseStability: 55,
         rebellionRisk: 0.9,
         possibleSuccessors: ['republic', 'monarchy'],
     },
     dictatorship: {
-        name: '独裁政权',
+        name: '集权体制',
         baseStability: 40,
         rebellionRisk: 1.2,
         possibleSuccessors: ['republic', 'military_junta'],
@@ -361,7 +361,7 @@ export function triggerCivilWar(nation, daysElapsed) {
         civilWarData: {
             governmentStrength,
             rebelStrength,
-            governmentSupport: [], // 支持政府的国家ID
+            governmentSupport: [], // 支持当局的国家ID
             rebelSupport: [],      // 支持叛军的国家ID
             casualties: {
                 government: 0,
@@ -377,7 +377,7 @@ export function triggerCivilWar(nation, daysElapsed) {
 }
 
 /**
- * 计算政府军事实力
+ * 计算官军事实力
  * @param {Object} nation - AI国家对象
  * @returns {number} - 军事实力值
  */
@@ -491,7 +491,7 @@ export function handleRegimeChange(nation, winner, daysElapsed) {
         const currentGov = nation.governmentType || 'monarchy';
         const govConfig = GOVERNMENT_TYPES[currentGov] || GOVERNMENT_TYPES.monarchy;
         
-        // 随机选择新政体
+        // 随机选择新体制
         const possibleGovs = govConfig.possibleSuccessors || ['republic'];
         const newGov = possibleGovs[Math.floor(Math.random() * possibleGovs.length)];
         
@@ -499,7 +499,7 @@ export function handleRegimeChange(nation, winner, daysElapsed) {
         updates.previousGovernmentType = currentGov;
         updates.regimeChangeDay = daysElapsed;
         
-        // 新政权的基础稳定度
+        // 新当局的基础稳定度
         const newGovConfig = GOVERNMENT_TYPES[newGov] || GOVERNMENT_TYPES.republic;
         updates.baseStability = newGovConfig.baseStability;
         updates.stability = newGovConfig.baseStability - 10; // 刚经历内战，稳定度较低
@@ -536,7 +536,7 @@ export function handleRegimeChange(nation, winner, daysElapsed) {
 
 /**
  * 生成内战后的阶层结构
- * @param {string} governmentType - 新政体类型
+ * @param {string} governmentType - 新体制类型
  * @returns {Object} - 阶层结构
  */
 function generatePostWarSocialStructure(governmentType) {
@@ -547,7 +547,7 @@ function generatePostWarSocialStructure(governmentType) {
         underclass: { ratio: 0.10, satisfaction: 30, influence: 0.20 },
     };
     
-    // 根据新政体调整
+    // 根据新体制调整
     if (governmentType === 'republic') {
         baseStructure.commoners.satisfaction += 10;
         baseStructure.elites.satisfaction -= 5;
@@ -569,8 +569,8 @@ function generatePostWarSocialStructure(governmentType) {
 export const INTERVENTION_OPTIONS = {
     support_government: {
         id: 'support_government',
-        name: '支持政府',
-        description: '为现政权提供资金和军事支持',
+        name: '支持当局',
+        description: '为当前当局提供资金和军事支持',
         cost: { silver: 1000 },
         effects: {
             foreignSupport: 15,

@@ -213,7 +213,7 @@ const TRADE_POLICY_OPTIONS = [
     {
         id: 'free',
         title: '自由贸易',
-        description: '允许附庸与任何国家自由贸易，换取政治稳定',
+        description: '允许附庸与任何国家自由贸易，换取局势稳定',
         effects: '无价格优势、无关税减免，独立倾向增速-20%',
         effectColor: 'text-green-400',
         independenceChange: -5,

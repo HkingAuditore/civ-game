@@ -168,7 +168,7 @@ const calculateUpgradeProfitGain = (building, fromLevel, toLevel, market, taxPol
     return nextProfit - currentProfit;
 };
 
-// 政治立场对应的投资概率乘数（基础概率）
+// 施政立场对应的投资概率乘数（基础概率）
 // 左派倾向于反对私有资本积累，右派倾向于支持
 const STANCE_INVESTMENT_PROBABILITY = {
     // Left (Anti-Capitalist)

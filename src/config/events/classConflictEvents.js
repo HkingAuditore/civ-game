@@ -3394,7 +3394,7 @@ export const CLASS_CONFLICT_EVENTS = [
       {
         id: 'elite_education',
         text: '只教育精英',
-        description: '建立有限的精英学校，培养统治阶层。',
+        description: '建立有限的精英学校，培养主导阶层。',
         effects: {
           resourcePercent: {
             silver: -0.025,

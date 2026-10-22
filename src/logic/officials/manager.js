@@ -35,7 +35,7 @@ export const OFFICIAL_SELECTION_COOLDOWN = 180;
  * @param {Object} market - 当前市场数据（包含 prices 等信息）
  * @param {Object} rates - 当前资源速率（用于估算规模）
  * @param {Array} existingOfficials - 已有官员列表
- * @param {Object|null} polityPreferences - 政体官员偏好 { stratumWeights: {}, statBonuses: {} }
+ * @param {Object|null} polityPreferences - 体制官员偏好 { stratumWeights: {}, statBonuses: {} }
  * @returns {Array} 新生成的候选人列表
  */
 export const triggerSelection = (epoch, popStructure = {}, classInfluence = {}, market = null, rates = null, existingOfficials = [], polityPreferences = null) => {
@@ -182,7 +182,7 @@ const TECH_OFFICIAL_BONUS = {
 /**
  * 计算有效官员容量
  * @param {number} epoch - 当前时代
- * @param {Object} polityEffects - 当前政体效果
+ * @param {Object} polityEffects - 当前体制效果
  * @param {Array} techsUnlocked - 已解锁科技列表
  * @param {number} ideologyBonus - 理念加成（来自装备的理念规则）
  * @returns {number} 有效官员容量
@@ -194,7 +194,7 @@ export const calculateOfficialCapacity = (epoch = 0, polityEffects = {}, techsUn
     // 时代加成（每个时代递增3，确保升级时代后官员上限不下降）
     const epochBonus = EPOCH_OFFICIAL_BONUS[epoch] ?? (epoch * 3);
 
-    // 政体加成
+    // 体制加成
     const polityBonus = polityEffects.officialCapacity || 0;
 
     // 科技加成
@@ -522,7 +522,7 @@ export const calculateOfficialAbsoluteInfluence = (official, context = {}) => {
     const propertyLevelScore = Math.sqrt(propertyLevelSum) * 45;   // 升级越高越像大庄园/大工厂
     const propertyValueScore = Math.log10(propertyValue + 1) * 40; // 总资产规模
 
-    // 政体官僚容量：容量越高，官僚体系越成熟，单官员可以撬动更大权力
+    // 体制官僚容量：容量越高，官僚体系越成熟，单官员可以撬动更大权力
     const officialCapacity = Math.max(0, polityEffects.officialCapacity || 0);
     const bureaucracyFactor = 1 + Math.min(1.2, officialCapacity * 0.05); // 最多2.2x
 
@@ -634,17 +634,17 @@ export const getOfficialInfluenceBonus = (officials, isPaid = true, context = {}
     return bonuses;
 };
 
-// ========== 政治立场效果聚合 ==========
+// ========== 施政立场效果聚合 ==========
 
 /**
- * 聚合所有官员的政治立场效果
+ * 聚合所有官员的施政立场效果
  * @param {Array} officials - 在任官员列表
  * @param {Object} gameState - 当前游戏状态（用于检查条件）
  * @returns {Object} { aggregatedEffects, satisfiedCount, unsatisfiedCount }
  */
 export const getAggregatedStanceEffects = (officials, gameState) => {
     const aggregated = {
-        // 稳定度/合法性
+        // 稳定度/权威
         stability: 0,
         legitimacyBonus: 0,
 
@@ -718,7 +718,7 @@ export const getAggregatedStanceEffects = (officials, gameState) => {
     officials.forEach(official => {
         if (!official) return;
 
-        // 检查该官员的政治立场条件是否满足
+        // 检查该官员的施政立场条件是否满足
         // [FIX] 与官员卡片/详情页统一口径：优先采用模拟端每帧缓存的生效值
         // （official.isStanceSatisfied），缺失时再用传入的 gameState 实时计算。
         // 避免汇总面板"满足X/未满足Y"统计与卡片显示不一致。
@@ -1262,7 +1262,7 @@ const flattenEffectObject = (obj) => {
 };
 
 /**
- * 统一聚合所有在任官员的加成（基础效果 + 政治立场效果 + 部长任命加成），
+ * 统一聚合所有在任官员的加成（基础效果 + 施政立场效果 + 部长任命加成），
  * 按 type|target 累加净值，再按类别分组，供「全部加成汇总」面板使用。
  *
  * @param {Object} params
@@ -1287,7 +1287,7 @@ export const aggregateAllOfficialBonuses = ({
     // 1. 基础效果（含 drawbacks、腐败、财务惩罚、未付薪减半）
     const baseEffects = getAggregatedOfficialEffects(safeOfficials, officialsPaid);
 
-    // 2. 政治立场效果（满足/未满足）
+    // 2. 施政立场效果（满足/未满足）
     const stanceResult = getAggregatedStanceEffects(safeOfficials, stanceContext || {});
     const stanceEffects = stanceResult?.aggregatedEffects || {};
 

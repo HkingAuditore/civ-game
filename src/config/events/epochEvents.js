@@ -5506,7 +5506,7 @@ export const EPOCH_EVENTS = [
         name: '焚书禁学',
         icon: 'Flame',
         image: null,
-        description: '宰相进言：民间流传着许多异端邪说和诽谤朝廷的文章，它们动摇人心，威胁统治。他建议收缴并焚毁所有私藏的经典著作，只保留官方认可的版本。一些学者闻讯后惊恐不已，试图藏匿书籍。',
+        description: '宰相进言：民间流传着许多异端邪说和诽谤朝廷的文章，它们动摇人心，威胁秩序。他建议收缴并焚毁所有私藏的经典著作，只保留官方认可的版本。一些学者闻讯后惊恐不已，试图藏匿书籍。',
         triggerConditions: { minEpoch: 2, maxEpoch: 4, minPopulation: 100 },
         options: [
             {

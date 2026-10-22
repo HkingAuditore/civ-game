@@ -295,7 +295,7 @@ export const REFORM_DECREES = {
 // ========== 核心计算函数 ==========
 
 /**
- * 获取官员的政治光谱
+ * 获取官员的立场光谱
  * @param {Object} official - 官员对象
  * @returns {string} 'left' | 'center' | 'right'
  */
@@ -833,7 +833,7 @@ export const canOwnerExpand = (building, ownerStratum, ownerWealth, expansionSet
     }
     baseCost = baseCost > 0 ? Math.round(baseCost) : 100;
 
-    // 计算建筑盈利（补贴受税收效率折扣）
+    // 计算建筑盈利（补贴受征收效率折扣）
     const profitResult = calculateBuildingProfit(building, market, taxPolicies, { taxEfficiency });
     const profit = profitResult.profit;
 

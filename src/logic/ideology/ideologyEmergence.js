@@ -99,7 +99,7 @@ export function generateEmergenceCandidates(gameState, ideologyCollection = [], 
         const epochBalanceMultiplier = epochBalanceMap[ideology.unlockEpoch] || 1;
         weight *= epochBalanceMultiplier;
 
-        // 阶层关联（执政联盟相关）
+        // 阶层关联（联盟相关）
         if (rulingCoalition && rulingCoalition.length > 0) {
             // 军事类理念在有军人联盟时加权
             if (ideology.category === 'military' && rulingCoalition.includes('soldier')) weight *= 1.3;

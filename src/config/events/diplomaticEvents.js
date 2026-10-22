@@ -253,7 +253,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
         options.push({
             id: 'annex',
             text: '全面吞并',
-            description: `要求${nation.name}无条件解散政权，直接吞并全国并吸收约${formatNumber(Math.round(annexPopulation))}人口。`,
+            description: `要求${nation.name}无条件解散其当局，直接吞并全国并吸收约${formatNumber(Math.round(annexPopulation))}人口。`,
             effects: {},
             callback: () => callback(true, 'annex', annexPopulation),
         });
@@ -289,7 +289,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
         options.push({
             id: 'demand_population',
             text: '割让人口',
-            description: `割让${formatNumber(populationDemand)}人口及其土地归我方统治。`,
+            description: `割让${formatNumber(populationDemand)}人口及其土地归我方治理。`,
             effects: {},
             callback: () => callback(true, 'population', populationDemand),
         });
@@ -434,7 +434,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
 
     let description = '';
     if (warScore >= ANNEX_WAR_SCORE_THRESHOLD) {
-        description = `${nation.name}的政权濒临崩溃,使节带着投降书恳求无条件和平。`;
+        description = `${nation.name}的当局濒临崩溃,使节带着投降书恳求无条件和平。`;
     } else if (warScore > 200) {
         description = `${nation.name}在连番败仗后愿意支付沉重赔偿以换取停火。`;
     } else if (warScore > 50) {
@@ -1208,7 +1208,7 @@ export function createNationAnnexedEvent(nation, populationGained, maxPopGained,
 
     if (isWarAnnex) {
         title = `🏴 ${nation.name}已被吞并`;
-        description = `经过艰苦的战争,${nation.name}终于臣服于你的统治!他们的领土、人民和资源现在都归你所有。
+        description = `经过艰苦的战争,${nation.name}终于臣服于你!他们的领土、人民和资源现在都归你所有。
 
 🎉 吞并成果:
 • 获得人口:${formatNumberShortCN(Math.round(populationGained), { decimals: 0 })}人
@@ -1500,7 +1500,7 @@ export function createIndependenceWarEvent(nation, vassalInfo, callback) {
     let description = `⚠️ 紧急！你的${vassalTypeName}${nation.name}发动了独立战争！\n\n`;
 
     if (independencePressure > 80) {
-        description += `长期的高压统治和剥削积累了巨大的不满。${nation.name}的人民决心不惜一切代价争取独立！\n\n`;
+        description += `长期的高压管控和剥削积累了巨大的不满。${nation.name}的人民决心不惜一切代价争取独立！\n\n`;
     } else if (independencePressure > 60) {
         description += `${nation.name}的民族主义情绪高涨，他们认为时机已到，决定挑战宗主国的权威。\n\n`;
     } else {

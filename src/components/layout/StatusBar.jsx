@@ -73,7 +73,7 @@ export const StatusBar = React.memo(({
         diplomatic_gift: '外交送礼',
         ai_request_payment: '外交索要',
         ally_gift: '盟友送礼',
-        politics_spend_silver: '政治支出',
+        politics_spend_silver: '政务支出',
         decree_enact_cost: '政令支出',
         strategic_action_cost: '策略行动支出',
         foreign_investment_tax: '外资税收',
@@ -499,7 +499,7 @@ export const StatusBar = React.memo(({
                                 }
                             }}
                             className="relative group flex items-center glass-ancient px-1.5 py-1 rounded-lg border border-ancient-gold/15 hover:border-ancient-gold/40 hover:shadow-glow-gold transition-all touch-feedback"
-                            title="历年政府工作报告"
+                            title="历年施政报告"
                         >
                             <Icon name="ScrollText" size={13} className="text-ancient-gold/70 group-hover:text-ancient-gold transition-colors" />
                         </button>

@@ -89,7 +89,7 @@ const CivilWarCard = ({ nation, onIntervene }) => {
                     <div 
                         className="h-full bg-blue-500 transition-all"
                         style={{ width: `${govPercent}%` }}
-                        title="政府军"
+                        title="官军"
                     />
                     <div 
                         className="h-full bg-red-500 transition-all"
@@ -98,7 +98,7 @@ const CivilWarCard = ({ nation, onIntervene }) => {
                     />
                 </div>
                 <div className="flex justify-between text-xs">
-                    <span className="text-blue-400">政府军 {Math.round(govStrength)}</span>
+                    <span className="text-blue-400">官军 {Math.round(govStrength)}</span>
                     <span className="text-red-400">叛军 {Math.round(rebelStrength)}</span>
                 </div>
                 
@@ -106,7 +106,7 @@ const CivilWarCard = ({ nation, onIntervene }) => {
                 <div className="flex gap-4 text-xs mt-2">
                     {civilWarData.governmentSupport?.length > 0 && (
                         <span className="text-blue-300">
-                            政府支持者: {civilWarData.governmentSupport.length}国
+                            支持方: {civilWarData.governmentSupport.length}国
                         </span>
                     )}
                     {civilWarData.rebelSupport?.length > 0 && (
@@ -123,7 +123,7 @@ const CivilWarCard = ({ nation, onIntervene }) => {
                         className="flex-1 px-2 py-1 bg-blue-600/50 hover:bg-blue-600 
                                    text-blue-200 text-xs rounded transition-colors"
                     >
-                        支持政府
+                        支持当局
                     </button>
                     <button
                         onClick={() => onIntervene(nation.id, 'support_rebels')}
@@ -230,7 +230,7 @@ const NationStabilityCard = ({ nation, onIntervene, isExpanded, onToggle }) => {
                                            text-blue-300 text-xs rounded transition-colors"
                                 title="增加该国稳定度，提升关系"
                             >
-                                🏛️ 支持政权
+                                🏛️ 支持当局
                             </button>
                             <button
                                 onClick={() => onIntervene(nation.id, 'destabilize')}

@@ -1,6 +1,6 @@
 /**
- * 执政联盟面板组件
- * 允许玩家选择与哪些阶层联合执政
+ * 联盟面板组件
+ * 允许玩家选择与哪些阶层联合
  * 更换联盟需要花费银币（20%或最低5000）
  */
 
@@ -48,7 +48,7 @@ const calculateCoalitionChangeCost = (currentSilver) => {
 };
 
 /**
- * 执政联盟面板
+ * 联盟面板
  */
 export const CoalitionPanel = React.memo(({
     rulingCoalition = [],
@@ -231,7 +231,7 @@ export const CoalitionPanel = React.memo(({
             <div className="flex items-center justify-between mb-2">
                 <h3 className="text-xs font-bold flex items-center gap-1.5 text-gray-300 font-decorative">
                     <Icon name="Users" size={16} className="text-amber-400" />
-                    执政联盟
+                    联盟
                     {isEditMode && (
                         <span className="text-xs text-amber-400 font-normal ml-2 px-2 py-0.5 bg-amber-900/30 rounded">
                             编辑中
@@ -252,7 +252,7 @@ export const CoalitionPanel = React.memo(({
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div className="text-xs text-gray-400">
                             <Icon name="Info" size={12} className="inline mr-1" />
-                            改组政府需要花费银币
+                            改组联盟需要花费银币
                         </div>
                         <button
                             onClick={enterEditMode}
@@ -266,7 +266,7 @@ export const CoalitionPanel = React.memo(({
                             `}
                         >
                             <Icon name="Edit" size={12} />
-                            改组政府
+                            改组联盟
                             <span className={`ml-1 ${canAffordChange ? 'text-amber-200' : 'text-gray-400'}`}>
                                 ({formatNumberShortCN(changeCost, { decimals: 1 })} 银币)
                             </span>
@@ -316,7 +316,7 @@ export const CoalitionPanel = React.memo(({
                 </div>
             )}
 
-            {/* 政体描述词徽章 */}
+            {/* 体制描述词徽章 */}
             <div className="mb-2 p-2 bg-gray-800/50 rounded-lg border border-gray-700/50">
                 <div className="flex items-center gap-2">
                     <Icon name={governmentType.icon} size={18} className={governmentType.color} />
@@ -339,7 +339,7 @@ export const CoalitionPanel = React.memo(({
                 </div>
                 {polityEffects.length > 0 && (
                     <div className="mt-2 pt-2 border-t border-gray-700/50">
-                        <div className="text-xs text-gray-500 mb-1">政体效果</div>
+                        <div className="text-xs text-gray-500 mb-1">体制效果</div>
                         <div className="flex flex-wrap gap-1">
                             {polityEffects.map((effect, idx) => (
                                 <div
@@ -357,7 +357,7 @@ export const CoalitionPanel = React.memo(({
                 )}
             </div>
 
-            {/* 合法性说明 */}
+            {/* 权威说明 */}
             <div className="mb-2 p-2 bg-gray-900/30 rounded-lg">
                 <div className="flex items-center justify-between mb-0.5">
                     <span className="text-xs text-gray-400">联盟影响力</span>
@@ -381,7 +381,7 @@ export const CoalitionPanel = React.memo(({
                 </p>
                 <div className="mt-1.5 pt-1.5 border-t border-gray-700/50">
                     <div className="flex items-center justify-between mb-1.5 pb-1.5 border-b border-gray-600/30">
-                        <span className="text-xs font-bold text-gray-300">政府合法性</span>
+                        <span className="text-xs font-bold text-gray-300">权威</span>
                         <span className={`text-lg font-bold ${legitimacyInfo.color}`}>
                             {realTimeLegitimacy.toFixed(0)}
                             {isEditMode && hasChanges && <span className="ml-1 text-amber-400 text-xs font-normal">(预览)</span>}
@@ -402,7 +402,7 @@ export const CoalitionPanel = React.memo(({
                             {approvalLegitimacyFactor < 1 && (
                                 <div className="flex items-center py-0.5">
                                     <span className="text-xs text-gray-400 flex items-center gap-1 flex-shrink-0">
-                                        <Icon name="TrendingDown" size={10} className="text-red-400" />满意度对合法性的影响
+                                        <Icon name="TrendingDown" size={10} className="text-red-400" />满意度对权威的影响
                                     </span>
                                     <span className="flex-1 mx-2 border-b border-dotted border-gray-600/50"></span>
                                     <span className="text-xs font-bold text-red-400">
@@ -416,7 +416,7 @@ export const CoalitionPanel = React.memo(({
                         <div className="text-xs text-gray-500 mb-1">效果</div>
                         <div className="flex items-center py-0.5">
                             <span className="text-xs text-gray-400 flex items-center gap-1 flex-shrink-0">
-                                <Icon name="Coins" size={10} className="text-yellow-400" />税收效率
+                                <Icon name="Coins" size={10} className="text-yellow-400" />征收效率
                             </span>
                             <span className="flex-1 mx-2 border-b border-dotted border-gray-600/50"></span>
                             <span className={`text-xs font-bold ${taxModifier >= 1 ? 'text-green-400' : 'text-red-400'}`}>
@@ -425,7 +425,7 @@ export const CoalitionPanel = React.memo(({
                         </div>
                         <div className="flex items-center py-0.5">
                             <span className="text-xs text-gray-400 flex items-center gap-1 flex-shrink-0">
-                                <Icon name="Users" size={10} className="text-orange-400" />在野阶层组织度增长倍率
+                                <Icon name="Users" size={10} className="text-orange-400" />非联盟阶层组织扩张倍率
                             </span>
                             <span className="flex-1 mx-2 border-b border-dotted border-gray-600/50"></span>
                             <span className={`text-xs font-bold ${orgModifier <= 1 ? 'text-green-400' : 'text-red-400'}`}>

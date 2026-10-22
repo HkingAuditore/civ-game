@@ -193,7 +193,7 @@ const ReportDetailView = ({ entry, empireName, onBack, onExport }) => {
                         <Icon name="ArrowLeft" size={16} className="text-ancient-gold" />
                     </button>
                     <div className="flex-1 text-center">
-                        <h3 className="text-sm font-bold text-ancient-gold">第 {year} 年 · 年度政府工作报告</h3>
+                        <h3 className="text-sm font-bold text-ancient-gold">第 {year} 年 · 年度施政报告</h3>
                         <p className="text-xs text-ancient-stone">{empireName || '我的文明'} · {epochName}</p>
                     </div>
                     <div className={`w-8 h-8 rounded-lg border ${gradeStyle.border} bg-gradient-to-br ${gradeStyle.bg} flex items-center justify-center`}>
@@ -415,7 +415,7 @@ export const AnnualReportHistoryModal = ({
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                             <Icon name="Archive" size={18} className="text-ancient-gold" />
-                                            <h2 className="text-lg font-bold text-ancient-gold tracking-wide">历年政府工作报告</h2>
+                                            <h2 className="text-lg font-bold text-ancient-gold tracking-wide">历年施政报告</h2>
                                         </div>
                                         <button
                                             onClick={onClose}

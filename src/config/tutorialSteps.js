@@ -232,25 +232,25 @@ export const TUTORIAL_STEPS = [
     },
     {
         id: 'ruling_coalition',
-        title: '执政联盟',
+        title: '联盟',
         icon: 'Crown',
         iconColor: 'text-purple-400',
-        lead: '选择你的政治盟友',
+        lead: '选择你的议事盟友',
         paragraphs: [
-            '执政联盟是你选择与哪些社会阶层共同执政的核心政治系统。联盟的组成直接影响政府的合法性和统治效率。',
+            '联盟是你选择与哪些社会阶层共同治理的核心治理机制。联盟的组成直接影响权威和治理效率。',
         ],
         cards: [
             {
                 icon: 'Users',
                 iconColor: 'text-blue-400',
                 title: '选择联盟成员',
-                text: '在「阶层」标签页选择联盟成员。联盟成员会对政府有更高的期望，但也提供影响力支持。',
+                text: '在「阶层」标签页选择联盟成员。联盟成员会有更高的期望，但也提供影响力支持。',
             },
             {
                 icon: 'Shield',
                 iconColor: 'text-emerald-400',
-                title: '政府合法性',
-                text: '联盟成员的总影响力占比决定合法性。合法性≥40%才是合法政府，影响税收效率和社会稳定。',
+                title: '权威',
+                text: '联盟成员的总影响力占比决定权威。权威≥40%才是稳定治理，影响征收效率和社会稳定。',
             },
             {
                 icon: 'AlertCircle',
@@ -264,7 +264,7 @@ export const TUTORIAL_STEPS = [
                 tone: 'tip',
                 icon: 'Lightbulb',
                 title: '策略提示',
-                text: '选择影响力高的阶层可快速获得合法性，但要确保能满足他们的需求，否则会适得其反！',
+                text: '选择影响力高的阶层可快速获得权威，但要确保能满足他们的需求，否则会适得其反！',
             },
         ],
     },
@@ -301,8 +301,8 @@ export const TUTORIAL_STEPS = [
             {
                 tone: 'info',
                 icon: 'Lightbulb',
-                title: '税收效率',
-                text: '税收实际收入 = 应收税款 × 合法性效率。政府合法性越高，税收效率越高（最高100%）。',
+                title: '征收效率',
+                text: '税收实际收入 = 应收税款 × 权威效率。权威越高，征收效率越高（最高100%）。',
             },
         ],
     },

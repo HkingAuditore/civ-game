@@ -128,7 +128,7 @@ export const CONVERTER_SOURCE_LABELS = {
     vassalCount: '附庸国',
     tradeVolume: '贸易额',
     unemployment: '失业人口',
-    legitimacy: '合法性',
+    legitimacy: '权威',
     avgApproval: '平均满意度',
     militarySize: '军队规模',
     wealthyPop: '富裕人口',
@@ -327,7 +327,7 @@ export function getConverterSourcePhrase(converter, step) {
         case 'unemployment':
             return `每${step}失业人口`;
         case 'legitimacy':
-            return `每${step}点合法性`;
+            return `每${step}点权威`;
         case 'avgApproval':
             return `每${step}点平均满意度`;
         case 'militarySize':

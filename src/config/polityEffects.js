@@ -2,8 +2,8 @@ import { BUILDINGS } from './buildings';
 import { STRATA } from './strata';
 
 /**
- * 政体配置
- * 定义政体的判定条件和效果
+ * 体制配置
+ * 定义体制的判定条件和效果
  * 
  * 判定条件 (conditions) 说明:
  * - priority: 优先级 (数值越大越优先判定)
@@ -37,12 +37,12 @@ import { STRATA } from './strata';
 
 export const POLITY_DEFINITIONS = [
     // ============================================
-    // 1. 单一阶层专制 (优先级 1000)
+    // 1. 单一阶层主导 (优先级 1000)
     // ============================================
     {
-        name: '封建地主专制',
+        name: '地主庄园体制',
         priority: 1000,
-        description: '由大地主阶级独揽政权',
+        description: '大地主阶层影响力占优',
         icon: 'Castle',
         color: 'text-amber-500',
         conditions: { exactCoalition: ['landowner'] },
@@ -57,7 +57,7 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '垄断资本独裁',
+        name: '资本垄断体制',
         priority: 1000,
         description: '资本家独占国家权力',
         icon: 'Briefcase',
@@ -74,9 +74,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '官僚集权',
+        name: '官僚体制',
         priority: 1000,
-        description: '官僚阶层垄断政权',
+        description: '官僚阶层影响力占优',
         icon: 'ScrollText',
         color: 'text-purple-400',
         conditions: { exactCoalition: ['official'] },
@@ -84,7 +84,7 @@ export const POLITY_DEFINITIONS = [
             production: 0.1,
             taxIncome: 0.12,
             cultureBonus: 0.08,
-            officialCapacity: 5, // 官僚集权大幅增加官员容量
+            officialCapacity: 5, // 官僚体制大幅增加官员容量
         },
         officialPreferences: {
             stratumWeights: { scribe: 2.5, merchant: 1.3 },
@@ -92,7 +92,7 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '商业寡头政治',
+        name: '商业寡头体制',
         priority: 1000,
         description: '商人阶层掌控国家',
         icon: 'Coins',
@@ -108,9 +108,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '神权政治',
+        name: '神权体制',
         priority: 1000,
-        description: '神职人员统治国家',
+        description: '神职人员主导国家',
         icon: 'Cross',
         color: 'text-indigo-400',
         conditions: { exactCoalition: ['cleric'] },
@@ -125,7 +125,7 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '军人专政',
+        name: '军人主导',
         priority: 1000,
         description: '军队独揽大权',
         icon: 'Swords',
@@ -142,9 +142,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '工人无产阶级专政',
+        name: '劳工主导',
         priority: 1000,
-        description: '工人阶级独揽政权',
+        description: '工人阶级影响力占优',
         icon: 'Hammer',
         color: 'text-red-600',
         conditions: { exactCoalition: ['worker'] },
@@ -159,9 +159,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '农民专政',
+        name: '农民主导',
         priority: 1000,
-        description: '农民阶级掌控政权',
+        description: '农民阶层影响力占优',
         icon: 'Wheat',
         color: 'text-green-500',
         conditions: { exactCoalition: ['peasant'] },
@@ -176,7 +176,7 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '技术官僚政治',
+        name: '技术官僚体制',
         priority: 1000,
         description: '工程师主导国家',
         icon: 'Cog',
@@ -186,7 +186,7 @@ export const POLITY_DEFINITIONS = [
             scienceBonus: 0.25,
             industry: 0.12,
             buildingProductionMod: { library: 0.2, university: 0.25 },
-            officialCapacity: 4, // 技术官僚政治增加官员容量
+            officialCapacity: 4, // 技术官僚体制增加官员容量
         },
         officialPreferences: {
             stratumWeights: { engineer: 2.5, scribe: 1.5 },
@@ -194,7 +194,7 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '学者治国',
+        name: '学者共治',
         priority: 1000,
         description: '知识分子掌权',
         icon: 'Feather',
@@ -211,7 +211,7 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '行会共和',
+        name: '行会共治',
         priority: 1000,
         description: '工匠行会主政',
         icon: 'Anvil',
@@ -227,9 +227,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '海上共和国',
+        name: '海上共治',
         priority: 1000,
-        description: '航海家主导政权',
+        description: '航海家群体影响力占优',
         icon: 'Compass',
         color: 'text-teal-400',
         conditions: { exactCoalition: ['navigator'] },
@@ -243,9 +243,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '矿业工人政权',
+        name: '矿业工人主导',
         priority: 1000,
-        description: '矿工阶级执政',
+        description: '矿工阶层影响力占优',
         icon: 'Pickaxe',
         color: 'text-gray-400',
         conditions: { exactCoalition: ['miner'] },
@@ -259,9 +259,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '农奴起义政权',
+        name: '佃农起义体制',
         priority: 1000,
-        description: '佃农阶级执政',
+        description: '佃农阶层影响力占优',
         icon: 'Users',
         color: 'text-brown-400',
         conditions: { exactCoalition: ['serf'] },
@@ -275,9 +275,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '林业工人政权',
+        name: '林业工人主导',
         priority: 1000,
-        description: '樵夫阶级执政',
+        description: '樵夫阶层影响力占优',
         icon: 'Trees',
         color: 'text-green-600',
         conditions: { exactCoalition: ['lumberjack'] },
@@ -290,9 +290,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '技术工人苏维埃',
+        name: '技术工人委员会',
         priority: 1000,
-        description: '技术工人阶层独揽政权，以工业技术为国家核心',
+        description: '技术工人阶层影响力占优，以工业技术为核心',
         icon: 'Wrench',
         color: 'text-cyan-500',
         conditions: { exactCoalition: ['technician'] },
@@ -326,27 +326,27 @@ export const POLITY_DEFINITIONS = [
     },
     // 单一阶层兜底 (优先级 999)
     {
-        name: '独裁政体',
+        name: '集权体制',
         priority: 999,
-        description: '单一阶层执政',
+        description: '单一阶层主导',
         icon: 'Crown',
         color: 'text-amber-400',
         conditions: { maxSize: 1 },
         effects: {
             stability: -0.05,
             taxIncome: 0.05,
-            officialCapacity: 2, // 独裁政体少量增加官员容量
+            officialCapacity: 2, // 集权体制少量增加官员容量
         }
     },
 
     // ============================================
-    // 2. 特定组合政体 (优先级 900)
+    // 2. 特定组合体制 (优先级 900)
     // ============================================
     // 工农联盟
     {
-        name: '工农联合政府',
+        name: '工农联合共治',
         priority: 910,
-        description: '工人和农民阶级联合执政',
+        description: '工人与农民阶层联合共治',
         icon: 'Handshake',
         color: 'text-red-500',
         conditions: {
@@ -364,9 +364,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '人民民主专政',
+        name: '工农共治体制',
         priority: 900,
-        description: '以工农联盟为基础的人民政权',
+        description: '以工农联盟为基础的共治',
         icon: 'Users',
         color: 'text-red-600',
         conditions: {
@@ -386,9 +386,9 @@ export const POLITY_DEFINITIONS = [
 
     // 资产阶级民主
     {
-        name: '资产阶级共和国',
+        name: '资产阶级共治',
         priority: 900,
-        description: '资产阶级主导的民主政体',
+        description: '资产阶级主导的民主体制',
         icon: 'Building2',
         color: 'text-blue-400',
         conditions: {
@@ -400,7 +400,7 @@ export const POLITY_DEFINITIONS = [
             industry: 0.15,
             taxIncome: 0.12,
             buildingProductionMod: { market: 0.1 },
-            officialCapacity: 3, // 资产阶级共和国增加官员容量
+            officialCapacity: 3, // 资产阶级共治增加官员容量
         },
         officialPreferences: {
             stratumWeights: { capitalist: 2.0, merchant: 1.8, engineer: 1.3 },
@@ -408,9 +408,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '资本主义寡头政治',
+        name: '资本主义寡头体制',
         priority: 890, // Fallback for Bourgeoisie
-        description: '资产阶级独占政权',
+        description: '资产阶级影响力占优',
         icon: 'Briefcase',
         color: 'text-blue-500',
         conditions: {
@@ -432,7 +432,7 @@ export const POLITY_DEFINITIONS = [
     {
         name: '封建神权联盟',
         priority: 900,
-        description: '传统贵族与教会联合执政',
+        description: '传统贵族与教会联合共治',
         icon: 'Crown',
         color: 'text-purple-500',
         conditions: {
@@ -451,9 +451,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '贵族寡头政治',
+        name: '贵族寡头体制',
         priority: 890, // Fallback for Aristocracy
-        description: '传统贵族阶层联合执政',
+        description: '传统贵族阶层联合共治',
         icon: 'Castle',
         color: 'text-amber-500',
         conditions: {
@@ -474,7 +474,7 @@ export const POLITY_DEFINITIONS = [
     {
         name: '军事-精英联盟',
         priority: 900,
-        description: '军队与精英阶层联合执政',
+        description: '军队与精英阶层联合共治',
         icon: 'Shield',
         color: 'text-red-500',
         conditions: {
@@ -492,9 +492,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '军人政府',
+        name: '军务体制',
         priority: 890, // Fallback for Military
-        description: '军事力量主导的政权',
+        description: '军事力量占优',
         icon: 'Swords',
         color: 'text-red-600',
         conditions: {
@@ -582,7 +582,7 @@ export const POLITY_DEFINITIONS = [
 
     // 科技联盟（信息时代）
     {
-        name: '科技共和国',
+        name: '科技共治',
         priority: 900,
         description: '技术工人与科学家联合，以技术创新驱动国家',
         icon: 'Atom',
@@ -605,7 +605,7 @@ export const POLITY_DEFINITIONS = [
 
     // 知识精英联盟
     {
-        name: '知识精英共和国',
+        name: '知识精英共治',
         priority: 900,
         description: '学者、工程师与科学家联合，以知识和技术治国',
         icon: 'GraduationCap',
@@ -650,9 +650,9 @@ export const POLITY_DEFINITIONS = [
 
     // 官商联盟
     {
-        name: '官商勾结政府',
+        name: '官商合流',
         priority: 900,
-        description: '官员与商人相互勾连，以行政权力保护商业利益',
+        description: '官员与商人相互勾连，以行政职权保护商业利益',
         icon: 'Handshake',
         color: 'text-yellow-600',
         conditions: {
@@ -674,7 +674,7 @@ export const POLITY_DEFINITIONS = [
 
     // 工匠-商人联盟（前工业时代）
     {
-        name: '行会商业共和',
+        name: '行会商业共治',
         priority: 900,
         description: '工匠行会与商人阶层联合，以手工业和贸易为基础',
         icon: 'Anvil',
@@ -695,11 +695,11 @@ export const POLITY_DEFINITIONS = [
     },
 
     // ============================================
-    // 3. 大联盟政体 (优先级 800)
+    // 3. 大联盟体制 (优先级 800)
     // 必须 size >= 5
     // ============================================
     {
-        name: '全民联合政府',
+        name: '全民联合共治',
         priority: 850,
         description: '跨越阶级的广泛联盟',
         icon: 'Globe',
@@ -712,13 +712,13 @@ export const POLITY_DEFINITIONS = [
             production: 0.08,
             stratumDemandMod: { peasant: -0.05, worker: -0.05 },
             stability: 0.12,
-            officialCapacity: 4, // 全民联合政府增加官员容量
+            officialCapacity: 4, // 全民联合共治增加官员容量
         }
     },
     {
-        name: '民族团结政府',
+        name: '民族团结共治',
         priority: 840,
-        description: '各阶层联合执政',
+        description: '各阶层联合共治',
         icon: 'Users',
         color: 'text-teal-400',
         conditions: {
@@ -751,9 +751,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '大联盟政府',
+        name: '大联盟共治',
         priority: 800, // Fallback for Large Coalition
-        description: '多阶层联合执政',
+        description: '多阶层联合共治',
         icon: 'Users',
         color: 'text-blue-400',
         conditions: { minSize: 5 },
@@ -764,10 +764,10 @@ export const POLITY_DEFINITIONS = [
     },
 
     // ============================================
-    // 4. 产业主导政体 (优先级 700)
+    // 4. 产业主导体制 (优先级 700)
     // ============================================
     {
-        name: '工业资本主义政府',
+        name: '工业资本共治',
         priority: 700,
         description: '工业资产阶级主导',
         icon: 'Factory',
@@ -788,9 +788,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '劳工联合政府',
+        name: '劳工联合共治',
         priority: 700,
-        description: '工业劳动者联合执政',
+        description: '工业劳动者联合共治',
         icon: 'Hammer',
         color: 'text-orange-500',
         conditions: {
@@ -809,7 +809,7 @@ export const POLITY_DEFINITIONS = [
     {
         name: '地主-农民联盟',
         priority: 700,
-        description: '农村阶层联合执政',
+        description: '农村阶层联合共治',
         icon: 'Wheat',
         color: 'text-green-500',
         conditions: {
@@ -840,9 +840,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '农民政府',
+        name: '农本共治',
         priority: 690,
-        description: '农民阶级主导政权',
+        description: '农民阶层影响力占优',
         icon: 'Wheat',
         color: 'text-green-600',
         conditions: {
@@ -858,9 +858,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '商业共和国',
+        name: '商业共治',
         priority: 700,
-        description: '商业阶层主导政权',
+        description: '商业阶层影响力占优',
         icon: 'Ship',
         color: 'text-teal-400',
         conditions: {
@@ -876,9 +876,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '技术精英政府',
+        name: '技术精英共治',
         priority: 700,
-        description: '知识分子联合执政',
+        description: '知识分子联合共治',
         icon: 'GraduationCap',
         color: 'text-cyan-400',
         conditions: {
@@ -888,7 +888,7 @@ export const POLITY_DEFINITIONS = [
             scienceBonus: 0.18,
             industry: 0.1,
             buildingProductionMod: { library: 0.15, university: 0.15 },
-            officialCapacity: 3, // 技术精英政府增加官员容量
+            officialCapacity: 3, // 技术精英共治增加官员容量
         },
         officialPreferences: {
             stratumWeights: { scribe: 2.0, engineer: 2.0 },
@@ -896,9 +896,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '信息时代民主',
+        name: '信息时代共治',
         priority: 700,
-        description: '科学家主导的现代民主政体，以知识经济为核心',
+        description: '科学家主导的现代民主体制，以知识经济为核心',
         icon: 'Cpu',
         color: 'text-violet-400',
         conditions: {
@@ -919,7 +919,7 @@ export const POLITY_DEFINITIONS = [
     {
         name: '技术工业国家',
         priority: 700,
-        description: '技术工人主导的工业政体，以精密制造为国家支柱',
+        description: '技术工人主导的工业体制，以精密制造为国家支柱',
         icon: 'Wrench',
         color: 'text-cyan-600',
         conditions: {
@@ -938,9 +938,9 @@ export const POLITY_DEFINITIONS = [
     },
     // ============================================
     {
-        name: '无产阶级政府',
+        name: '劳工共治',
         priority: 600,
-        description: '劳动人民掌握政权',
+        description: '劳动群体影响力占优',
         icon: 'Hammer',
         color: 'text-red-500',
         conditions: {
@@ -957,9 +957,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '精英联盟政府',
+        name: '精英联盟共治',
         priority: 600,
-        description: '上层阶级联合执政',
+        description: '上层阶层联合共治',
         icon: 'Crown',
         color: 'text-amber-400',
         conditions: {
@@ -976,12 +976,12 @@ export const POLITY_DEFINITIONS = [
     },
 
     // ============================================
-    // 6. 默认政体 (优先级 100)
+    // 6. 默认体制 (优先级 100)
     // ============================================
     {
-        name: '双头政治',
+        name: '双头共治',
         priority: 100,
-        description: '两个阶层联合执政',
+        description: '两个阶层联合共治',
         icon: 'Scale',
         color: 'text-gray-400',
         conditions: { exactSize: 2 },
@@ -990,7 +990,7 @@ export const POLITY_DEFINITIONS = [
     {
         name: '三方联盟',
         priority: 100,
-        description: '三个阶层共同执政',
+        description: '三个阶层协同治理',
         icon: 'Triangle',
         color: 'text-gray-400',
         conditions: { exactSize: 3 },
@@ -1001,18 +1001,18 @@ export const POLITY_DEFINITIONS = [
     // 0. 最终兜底 (优先级 0)
     // ============================================
     {
-        name: '联合政府',
+        name: '联合共治',
         priority: 0,
-        description: '多阶层联合执政',
+        description: '多阶层联合共治',
         icon: 'Users',
         color: 'text-gray-400',
         conditions: {},
         effects: { stability: 0.03 }
     },
     {
-        name: '无执政联盟',
+        name: '无联盟',
         priority: -1, // Special handling in code if coalition is empty
-        description: '尚未建立执政联盟，政府缺乏社会基础',
+        description: '尚未建立联盟，缺乏社会基础',
         icon: 'HelpCircle',
         color: 'text-gray-400',
         conditions: { maxSize: 0 },
@@ -1024,7 +1024,7 @@ export const POLITY_DEFINITIONS = [
     }
 ];
 
-// 辅助函数：根据名称获取政体定义
+// 辅助函数：根据名称获取体制定义
 export const getPolityDefinition = (polityName) => {
     return POLITY_DEFINITIONS.find(def => def.name === polityName);
 };
@@ -1035,8 +1035,8 @@ export const getPolityEffects = (polityName) => {
 };
 
 /**
- * 根据政体名称获取官员偏好配置
- * @param {string} polityName - 政体名称
+ * 根据体制名称获取官员偏好配置
+ * @param {string} polityName - 体制名称
  * @returns {Object|null} { stratumWeights: {}, statBonuses: {} } 或 null
  */
 export const getPolityOfficialPreferences = (polityName) => {

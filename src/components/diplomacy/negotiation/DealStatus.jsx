@@ -83,7 +83,7 @@ const DealStatus = ({
                 <div className={`p-2 rounded border flex flex-col items-center ${politicalCost > 0 ? 'bg-orange-900/20 border-orange-500/30' : 'bg-gray-800/30 border-gray-600/30'}`}>
                     <div className="flex items-center gap-1 mb-1">
                         <Icon name="AlertTriangle" size={10} className={politicalCost > 0 ? 'text-orange-300' : 'text-gray-400'} />
-                        <span className={`text-xs uppercase tracking-wide ${politicalCost > 0 ? 'text-orange-300' : 'text-gray-400'}`}>{t('breakdown.political', '政治风险')}</span>
+                        <span className={`text-xs uppercase tracking-wide ${politicalCost > 0 ? 'text-orange-300' : 'text-gray-400'}`}>{t('breakdown.political', '交涉风险')}</span>
                     </div>
                     <span className={`text-sm font-bold font-mono ${politicalCost > 0 ? 'text-orange-100' : 'text-gray-400'}`}>
                         -{Math.round(politicalCost)}

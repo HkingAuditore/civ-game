@@ -331,7 +331,7 @@ export const TECHS = [
     {
         id: 'administrative_reform',
         name: "行政改革",
-        desc: "改革行政体系，提升官僚机构运转效率。民生建筑效率 +7%。",
+        desc: "改革行体制系，提升官僚机构运转效率。民生建筑效率 +7%。",
         cost: { science: 18900 },
         epoch: 5,
         prerequisites: ['civil_service'],

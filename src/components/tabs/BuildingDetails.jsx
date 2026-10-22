@@ -1183,7 +1183,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                 {hasInputCostMod && totalInputs.length > 0 && (
                                     <div className="mt-1.5 text-xs text-amber-400 flex items-center gap-1">
                                         <Icon name="Info" size={10} />
-                                        原料成本修正: {inputCostMod > 0 ? '+' : ''}{(inputCostMod * 100).toFixed(0)}% (来自官员/政治立场)
+                                        原料成本修正: {inputCostMod > 0 ? '+' : ''}{(inputCostMod * 100).toFixed(0)}% (来自官员/施政立场)
                                     </div>
                                 )}
                             </div>

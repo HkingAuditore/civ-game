@@ -626,7 +626,7 @@ function GameApp({ gameState }) {
         }
         if (ideologyReward > 0 && typeof gameState.setIdeologyScore === 'function') {
             gameState.setIdeologyScore(prev => (prev || 0) + ideologyReward);
-            addLog(`⚡ 年度政府工作报告获评 ${reportGrade} 级，获得 ${ideologyReward} 点理念分。`);
+            addLog(`⚡ 年度施政报告获评 ${reportGrade} 级，获得 ${ideologyReward} 点理念分。`);
         }
         // Save current snapshot as next year's baseline
         const newBaseline = collectAnnualSnapshot(gameState);
@@ -680,7 +680,7 @@ function GameApp({ gameState }) {
     const handleTutorialSkip = () => {
         gameState.setShowTutorial(false);
         localStorage.setItem('tutorial_completed', 'true');
-        addLog('ℹ️ 已跳过教程，可以在右侧查看统治指南。');
+        addLog('ℹ️ 已跳过教程，可以在右侧查看治理指南。');
     };
 
     // 删除 GameControls 中的 confirm 对话框，使用弹窗替代
@@ -1892,7 +1892,7 @@ function GameApp({ gameState }) {
                                                 jobFill={gameState.jobFill}
                                                 jobsAvailable={gameState.jobsAvailable}
                                                 buildingFinancialData={gameState.buildingFinancialData}
-                                                // 执政联盟 props
+                                                // 联盟 props
                                                 rulingCoalition={gameState.rulingCoalition}
                                                 onUpdateCoalition={gameState.setRulingCoalition}
                                                 classInfluence={gameState.classInfluence}
@@ -1956,7 +1956,7 @@ function GameApp({ gameState }) {
                                                 onToggleMinisterAutoExpansion={actions.toggleMinisterAutoExpansion}
                                                 resources={gameState.resources}
 
-                                                // [NEW] 传递政治立场检查所需的上下文
+                                                // [NEW] 传递施政立场检查所需的上下文
                                                 stanceContext={{
                                                     classApproval: gameState.classApproval,
                                                     classInfluence: gameState.classInfluence,
@@ -2132,7 +2132,7 @@ function GameApp({ gameState }) {
                                 <summary className="px-3 py-2 cursor-pointer flex items-center justify-between text-xs font-bold text-blue-300 hover:text-blue-200 transition-colors">
                                     <span className="flex items-center gap-2">
                                         <Icon name="Lightbulb" size={12} />
-                                        统治指南
+                                        治理指南
                                     </span>
                                     <Icon name="ChevronDown" size={12} className="transform group-open:rotate-180 transition-transform" />
                                 </summary>

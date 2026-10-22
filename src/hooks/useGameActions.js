@@ -2467,7 +2467,7 @@ export const useGameActions = (gameState, addLog) => {
             return;
         }
 
-        // 计算当前政体的官员偏好
+        // 计算当前体制的官员偏好
         let polityPreferences = null;
         if (rulingCoalition && rulingCoalition.length > 0) {
             const currentPolity = getGovernmentType(
@@ -4458,7 +4458,7 @@ export const useGameActions = (gameState, addLog) => {
                 break;
             }
             // ========================================================================
-            // 外交干预操作（支持政府、支持叛军、颠覆活动等）
+            // 外交干预操作（支持当局、支持叛军、颠覆活动等）
 
             // ========================================================================
             case 'foreign_intervention': {
@@ -4528,7 +4528,7 @@ export const useGameActions = (gameState, addLog) => {
                 }));
                 // 根据干预类型生成不同的日志
                 const interventionLogs = {
-                    support_government: `🏛️ 你决定支持 ${targetNation.name} 的现政权，提供了援助。关系提升。`,
+                    support_government: `🏛️ 你决定支持 ${targetNation.name} 的当前当局，提供了援助。关系提升。`,
                     support_rebels: `🏴 你秘密资助 ${targetNation.name} 的反对派势力，推动其国内动荡。`,
                     destabilize: `🕵️ 你派遣间谍前往 ${targetNation.name} 进行颠覆活动。`,
                     military_intervention: `⚔️ 你直接派兵干预 ${targetNation.name} 的内战！`,
@@ -6776,7 +6776,7 @@ export const useGameActions = (gameState, addLog) => {
                 ...prev,
                 [stratumKey]: (prev[stratumKey] || 0) + recoveredPop,
             }));
-            addLog(`${recoveredPop}名${stratumName}回归了你的统治。`);
+            addLog(`${recoveredPop}名${stratumName}回归了你的治理。`);
         }
         // 触发结束事件 - 延迟执行确保在选项处理完成后再显示弹窗
         setTimeout(() => {

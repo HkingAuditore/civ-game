@@ -112,11 +112,11 @@ const getPolicyWealthEffects = (vassalPolicy = {}) => {
     };
 
     // 治理政策对财富分配的影响
-    // 直接统治削弱本地精英
+    // 直辖削弱本地精英
     const governanceEffects = {
         autonomous: { elites: 0.02, commoners: 0, underclass: -0.02 },  // 自治：本地精英受益
         puppet_govt: { elites: 0, commoners: 0, underclass: 0 },
-        direct_rule: { elites: -0.05, commoners: 0, underclass: 0.05 },   // 直接统治：削弱本地精英
+        direct_rule: { elites: -0.05, commoners: 0, underclass: 0.05 },   // 直辖：削弱本地精英
     };
 
     // 投资政策对财富分配的影响
@@ -158,7 +158,7 @@ const getPolicyPopulationEffects = (vassalPolicy = {}) => {
     };
 
     // 治理政策对人口比例的影响
-    // 直接统治导致本地精英流失
+    // 直辖导致本地精英流失
     const governanceEffects = {
         autonomous: { elites: 0.01, commoners: 0, underclass: -0.01 },  // 精英增加
         puppet_govt: { elites: 0, commoners: 0, underclass: 0 },

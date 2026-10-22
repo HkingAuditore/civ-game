@@ -26,10 +26,10 @@ const formatEffectNumber = (value) => {
 // 效果名称映射
 const EFFECT_NAMES = {
     stability: '稳定度',
-    legitimacyBonus: '合法性',
+    legitimacyBonus: '权威',
     militaryBonus: '军队战力',
     tradeBonus: '贸易利润',
-    taxEfficiency: '税收效率',
+    taxEfficiency: '征收效率',
     industryBonus: '工业产出',
     gatherBonus: '采集产出',
     taxBonus: '税收加成',
@@ -84,7 +84,7 @@ const getTargetDisplayName = (target) => {
     return target;
 };
 
-// 政治光谱配置
+// 立场光谱配置
 const SPECTRUM_CONFIG = {
     left: { bg: 'bg-red-900/40', border: 'border-red-500/60', text: 'text-red-300', label: '左派', icon: 'Users' },
     center: { bg: 'bg-blue-900/40', border: 'border-blue-500/60', text: 'text-blue-300', label: '建制派', icon: 'Scale' },
@@ -242,7 +242,7 @@ export const OfficialDetailModal = ({
     const prestige = calculatePrestige(official, currentDay);
     const prestigeInfo = getPrestigeLevel(prestige);
 
-    // 政治立场
+    // 施政立场
     const stanceData = official?.politicalStance || {};
     const stance = POLITICAL_STANCES[stanceData.stanceId || stanceData];
     const stanceSpectrum = stance?.spectrum || 'center';
@@ -318,8 +318,8 @@ export const OfficialDetailModal = ({
         // 优先使用模拟端计算好的数据
         if (official?.loyaltyChangeFactors && Array.isArray(official.loyaltyChangeFactors)) {
             const factorTextMap = {
-                'stanceSatisfied': '政治诉求满足',
-                'stanceUnsatisfied': '政治诉求未满足',
+                'stanceSatisfied': '施政诉求满足',
+                'stanceUnsatisfied': '施政诉求未满足',
                 'financialSatisfied': '财务状况良好',
                 'financialUncomfortable': '生活拮据',
                 'financialStruggling': '入不敷出',
@@ -341,11 +341,11 @@ export const OfficialDetailModal = ({
         const reasons = [];
         const { DAILY_CHANGES } = LOYALTY_CONFIG;
 
-        // 政治诉求
+        // 施政诉求
         if (isStanceSatisfied === true) {
-            reasons.push({ text: '政治诉求满足', value: DAILY_CHANGES.stanceSatisfied, positive: true });
+            reasons.push({ text: '施政诉求满足', value: DAILY_CHANGES.stanceSatisfied, positive: true });
         } else if (isStanceSatisfied === false) {
-            reasons.push({ text: '政治诉求未满足', value: DAILY_CHANGES.stanceUnsatisfied, positive: false });
+            reasons.push({ text: '施政诉求未满足', value: DAILY_CHANGES.stanceUnsatisfied, positive: false });
         }
 
         // 财务状况
@@ -402,7 +402,7 @@ export const OfficialDetailModal = ({
     const tabs = [
         { id: 'overview', label: '概览', icon: 'BarChart2' },
         { id: 'economy', label: '产业与财务', icon: 'Briefcase' },
-        { id: 'politics', label: '政治立场', icon: 'Flag' },
+        { id: 'politics', label: '施政立场', icon: 'Flag' },
     ];
 
     // 效果好坏判断函数（复用于Tab1）
@@ -892,7 +892,7 @@ export const OfficialDetailModal = ({
                     </div>
                 )}
 
-                {/* Tab3: 政治立场 */}
+                {/* Tab3: 施政立场 */}
                 {activeTab === 'politics' && (
                     <div className="space-y-3">
                         {stance ? (
@@ -908,7 +908,7 @@ export const OfficialDetailModal = ({
                                     )}
                                 </div>
 
-                                {/* 政治议题 */}
+                                {/* 施政议题 */}
                                 {stance.issues && stance.issues.length > 0 && (
                                     <div className="flex flex-wrap gap-1 mb-2">
                                         {stance.issues.map(issueId => {
@@ -953,7 +953,7 @@ export const OfficialDetailModal = ({
                         ) : (
                             <div className="rounded-lg border border-gray-700/50 bg-gray-900/40 p-6 text-center">
                                 <Icon name="Flag" size={24} className="text-gray-600 mx-auto mb-2" />
-                                <div className="text-sm text-gray-500">该官员无政治立场</div>
+                                <div className="text-sm text-gray-500">该官员无施政立场</div>
                             </div>
                         )}
                     </div>

@@ -62,14 +62,14 @@ export const OFFICIAL_EFFECT_TYPES = {
         description: (val) => `贸易利润 +${(val * 100).toFixed(0)}%`,
     },
 
-    // 税收效率加成
+    // 征收效率加成
     tax_efficiency: {
         type: 'taxEfficiency',
         category: 'economy',
         valueRange: [0.06, 0.25], // 大幅提升
         weight: 15,
         costMultiplier: 1.5,
-        description: (val) => `税收效率 +${(val * 100).toFixed(0)}%`,
+        description: (val) => `征收效率 +${(val * 100).toFixed(0)}%`,
     },
 
     // 建筑成本降低
@@ -235,14 +235,14 @@ export const OFFICIAL_EFFECT_TYPES = {
         description: (val) => `联盟阶层满意度 +${val}`,
     },
 
-    // 合法性加成
+    // 权威加成
     legitimacy_bonus: {
         type: 'legitimacyBonus',
         category: 'politics',
         valueRange: [0.06, 0.22], // 大幅提升
         weight: 10,
         costMultiplier: 1.2,
-        description: (val) => `合法性 +${(val * 100).toFixed(0)}%`,
+        description: (val) => `权威 +${(val * 100).toFixed(0)}%`,
     },
 
     // 组织度衰减 (负值=好)
@@ -443,7 +443,7 @@ export const OFFICIAL_DRAWBACK_TYPES = {
 // ========== 属性-效果映射 ==========
 // 定义每个属性对应的效果池
 export const STAT_EFFECT_MAPPING = {
-    // 行政属性 -> 经济/政治效果
+    // 行政属性 -> 经济/治理效果
     administrative: {
         primaryEffects: [
             'tax_efficiency', 'income_percent', 'building_cost_reduction',
@@ -695,8 +695,8 @@ export const LOYALTY_CONFIG = {
 
     // 每日忠诚度变化率
     DAILY_CHANGES: {
-        stanceSatisfied: 0.40,      // 政治诉求满足（大幅提升，约30天+12）
-        stanceUnsatisfied: -0.30,   // 政治诉求不满足
+        stanceSatisfied: 0.40,      // 施政诉求满足（大幅提升，约30天+12）
+        stanceUnsatisfied: -0.30,   // 施政诉求不满足
         financialSatisfied: 0.30,   // 财务满意
         financialUncomfortable: -0.10, // 财务不适（降低惩罚）
         financialStruggling: -0.20, // 财务困难
@@ -1298,7 +1298,7 @@ const GLOBAL_VALUE_SCALE_TYPES = new Set([
 const EFFECT_TYPE_WEIGHTS = {
     // 经济类：高价值但不要太极端
     taxIncome: 1.4,      // 降低：税收收入
-    taxEfficiency: 1.3,      // 降低：税收效率
+    taxEfficiency: 1.3,      // 降低：征收效率
     tradeBonus: 1.2,         // 降低：贸易利润
 
     // 生产类：提升权重，这些效果很实用
@@ -1465,7 +1465,7 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
         const influenceShare = totalInfluence > 0 ? (influence / totalInfluence) : 0;
         let weight = popShare * POP_RATIO + influenceShare * INFLUENCE_RATIO;
 
-        // 政体偏好：叠加阶层权重乘数
+        // 体制偏好：叠加阶层权重乘数
         if (polityPreferences && polityPreferences.stratumWeights) {
             const multiplier = polityPreferences.stratumWeights[stratum];
             if (multiplier) {
@@ -1512,7 +1512,7 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     // 统一属性对象
     const stats = { prestige, administrative, military, diplomacy };
 
-    // 政体偏好：叠加属性加成
+    // 体制偏好：叠加属性加成
     if (polityPreferences && polityPreferences.statBonuses) {
         for (const [stat, bonus] of Object.entries(polityPreferences.statBonuses)) {
             if (stats[stat] !== undefined) {
@@ -1618,7 +1618,7 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     const salaryInfluenceBonus = (salary / 1250) * 0.05; // 每 1250 薪水 +5%
     const stratumInfluenceBonus = Math.min(0.25, baseInfluenceBonus + salaryInfluenceBonus); // 最高25%
 
-    // 7. 分配政治立场（优先分配，以便影响贪婪度）
+    // 7. 分配施政立场（优先分配，以便影响贪婪度）
     // 包含动态生成的条件，基于当前市场数据
     const stanceResult = assignPoliticalStance(sourceStratum, epoch, market);
 
@@ -1635,7 +1635,7 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
         greed += 0.1;
     }
 
-    // 政治立场修正：左派更清廉
+    // 施政立场修正：左派更清廉
     // 越左越清廉 (spectrum: left -> 减少贪婪)
     const stanceInfo = getStanceInfo(stanceResult.stanceId);
     if (stanceInfo) {
@@ -1705,7 +1705,7 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
         xp,
         xpToNextLevel,
         ambition, // 野心值
-        // 政治立场信息
+        // 施政立场信息
         politicalStance: stanceResult.stanceId,
         stanceConditionParams: stanceResult.conditionParams,
         stanceConditionText: stanceResult.conditionText,

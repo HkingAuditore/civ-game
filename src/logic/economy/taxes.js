@@ -4,7 +4,7 @@
  *
  * effectiveTaxModifier 语义：征收效率系数，范围 [0, 1.0]，永远不超过 1.0。
  * 公式：baseTaxEfficiency + (1 - baseTaxEfficiency) × bonusRecovery
- * - baseTaxEfficiency = taxModifier × legitimacyTaxModifier（合法性越高效率越高）
+ * - baseTaxEfficiency = taxModifier × legitimacyTaxModifier（权威越高效率越高）
  * - bonusRecovery = clamp(taxBonus + ideoTaxModifier, 0, 1)（官员/科技/政令恢复效率损耗）
  * 含义：民众被扣了 X 银币，国库实际收到 X × effectiveTaxModifier 银币（差额为腐败等损耗）。
  */

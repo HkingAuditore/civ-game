@@ -40,7 +40,7 @@ export const INTERACTIVE_TUTORIAL_STEPS = [
         trigger: 'any-click',
         content: {
             title: '💰 核心概念：你只拥有银币',
-            description: '在这个游戏中，你作为统治者只拥有国库中的银币。所有的资源（粮食、木材、石料等）都由人民生产和拥有。',
+            description: '在这个游戏中，你作为当政者只拥有国库中的银币。所有的资源（粮食、木材、石料等）都由人民生产和拥有。',
             hint: '点击继续',
         },
         targetSelector: null,

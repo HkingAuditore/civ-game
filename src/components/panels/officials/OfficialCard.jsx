@@ -70,13 +70,13 @@ const formatEffectValue = (type, value, target) => {
     }
 };
 
-// 效果名称映射（政治立场效果专用）
+// 效果名称映射（施政立场效果专用）
 const EFFECT_NAMES = {
     stability: '稳定度',
-    legitimacyBonus: '合法性',
+    legitimacyBonus: '权威',
     militaryBonus: '军队战力',
     tradeBonus: '贸易利润',
-    taxEfficiency: '税收效率',
+    taxEfficiency: '征收效率',
     industryBonus: '工业产出',
     gatherBonus: '采集产出',
     taxBonus: '税收加成',
@@ -102,7 +102,7 @@ const OfficialCardInner = ({
     canAfford = true,
     actionDisabled = false,
     currentDay = 0,
-    isStanceSatisfied = null, // 新增：政治主张是否满足 (null=不检查, true=满足, false=不满足)
+    isStanceSatisfied = null, // 新增：施政主张是否满足 (null=不检查, true=满足, false=不满足)
     onViewDetail,
     compact = false,
     generals = [], // Generals list for checking if official is leading a corps
@@ -127,7 +127,7 @@ const OfficialCardInner = ({
     const stratumIcon = stratumDef?.icon || 'User';
     const salary = official.salary || 0;
 
-    // 政治立场（兼容字符串或对象）
+    // 施政立场（兼容字符串或对象）
     const stanceId = typeof official.politicalStance === 'string'
         ? official.politicalStance
         : official.politicalStance?.stanceId;
@@ -141,7 +141,7 @@ const OfficialCardInner = ({
         ? official.stanceUnsatisfiedPenalty
         : stance?.failureEffects;
 
-    // 政治光谱完整配置（颜色、图标、边框、标签）
+    // 立场光谱完整配置（颜色、图标、边框、标签）
     const spectrumConfig = {
         left: {
             bg: 'bg-red-900/30',
@@ -379,7 +379,7 @@ const OfficialCardInner = ({
                     </div>
                 </div>
 
-                {/* 第二行：出身 + 威望 + 财务状态 + 政治主张触发状态 */}
+                {/* 第二行：出身 + 威望 + 财务状态 + 施政主张触发状态 */}
                 <div className="mt-1 flex items-center flex-wrap gap-1 text-xs">
                     <span className={`${stratumColor} opacity-80`}>{stratumDef?.name || stratumKey}出身</span>
                     {prestigeInfo && <span className={`${prestigeInfo.color}`}>· {prestigeInfo.name}</span>}
@@ -393,7 +393,7 @@ const OfficialCardInner = ({
                             <Icon name="Flame" size={8} className="inline" /> {official.ambition}
                         </span>
                     )}
-                    {/* 政治主张触发状态标签 */}
+                    {/* 施政主张触发状态标签 */}
                     {stance && !isCandidate && (
                         <span
                             className={`inline-flex items-center gap-0.5 px-1 py-px rounded text-xs font-medium border ${
@@ -547,10 +547,10 @@ const OfficialCardInner = ({
                 if (!isCandidate && onViewDetail) onViewDetail(official);
             }}
         >
-            {/* 顶部政治光谱渐变条 */}
+            {/* 顶部立场光谱渐变条 */}
             <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${stanceColors.gradient}`} />
 
-            {/* 头部: 姓名, 阶层, 薪俸 + 政治光谱标签 */}
+            {/* 头部: 姓名, 阶层, 薪俸 + 立场光谱标签 */}
             <div className="flex justify-between items-start mb-2 pt-1 gap-2">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                     <div className={`p-1.5 rounded bg-gray-900/50 ${stratumColor} flex-shrink-0`}>
@@ -568,7 +568,7 @@ const OfficialCardInner = ({
                             )}
                         </div>
                         <div className={`text-xs ${stratumColor} opacity-80 flex items-center flex-wrap gap-1.5 mt-0.5`}>
-                            {/* 政治光谱小标签 (移至第二行以防重叠) */}
+                            {/* 立场光谱小标签 (移至第二行以防重叠) */}
                             <span className={`inline-flex items-center gap-0.5 px-1 py-px rounded text-xs font-medium ${stanceColors.bg} ${stanceColors.text} border ${stanceColors.border} flex-shrink-0`}>
                                 <Icon name={stanceColors.icon} size={8} />
                                 {stanceColors.label}
@@ -581,7 +581,7 @@ const OfficialCardInner = ({
                                             name={isStanceSatisfied ? 'Check' : 'X'} 
                                             size={8} 
                                             className={isStanceSatisfied ? 'text-green-400' : 'text-red-400'}
-                                            title={isStanceSatisfied ? '政治主张已满足' : '政治主张未满足'}
+                                            title={isStanceSatisfied ? '施政主张已满足' : '施政主张未满足'}
                                         />
                                     )}
                                 </span>
@@ -720,20 +720,20 @@ const OfficialCardInner = ({
                     </div>
                 </div>
 
-                {/* 右栏: 政治立场 */}
+                {/* 右栏: 施政立场 */}
                 <div className="pl-1">
                     {stance ? (
                         <>
                             <div className="text-xs text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1">
                                 <Icon name="Flag" size={10} />
-                                政治立场
+                                施政立场
                             </div>
                             {/* 立场名称 */}
                             <div className={`flex items-center gap-1 mb-0.5 ${stanceColors.text}`}>
                                 <Icon name={stance.icon || 'Flag'} size={12} />
                                 <span className="text-xs font-semibold">{stance.name}</span>
                             </div>
-                            {/* 政治议题 */}
+                            {/* 施政议题 */}
                             {stance.issues && stance.issues.length > 0 && (
                                 <div className="text-xs text-gray-500 mb-1 flex flex-wrap gap-1">
                                     {stance.issues.slice(0, 3).map(issueId => {
@@ -748,7 +748,7 @@ const OfficialCardInner = ({
                             )}
                             {/* 触发条件 - 简化显示 */}
                             <div className="mb-1">
-                                <span className="text-xs text-gray-500">政治主张:</span>
+                                <span className="text-xs text-gray-500">施政主张:</span>
                                 <div className="text-xs text-gray-300 bg-gray-800/30 p-1.5 rounded border border-gray-700/30 leading-snug break-words mt-0.5">
                                     {official.stanceConditionText || '无'}
                                 </div>
@@ -769,7 +769,7 @@ const OfficialCardInner = ({
                             )}
                         </>
                     ) : (
-                        <div className="text-xs text-gray-500 italic">无政治立场</div>
+                        <div className="text-xs text-gray-500 italic">无施政立场</div>
                     )}
                 </div>
             </div>

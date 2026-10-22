@@ -694,7 +694,7 @@ export const generateExportText = (reportData, empireName, year, epochIndex) => 
 
     const lines = [];
     lines.push('═'.repeat(40));
-    lines.push(`📜 ${empireName || '我的文明'} · 第 ${year} 年年度政府工作报告`);
+    lines.push(`📜 ${empireName || '我的文明'} · 第 ${year} 年年度施政报告`);
     lines.push(`🏛️ ${epochName}`);
     lines.push('═'.repeat(40));
     lines.push('');

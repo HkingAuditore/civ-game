@@ -2378,7 +2378,7 @@ export const useGameState = () => {
         playerInstallmentPayment: null, // 玩家的分期支付协议
         rebellionStates: {},
         rulingCoalition: ['peasant'], // 联盟成员阶层键数组
-        legitimacy: 0, // 合法性值(0-100)
+        legitimacy: 0, // 权威值(0-100)
         modifiers: {},
     });
     const actionCooldowns = _eventActionState.actionCooldowns;
@@ -2557,7 +2557,7 @@ export const useGameState = () => {
             }));
         }
 
-        // 合法性配�?
+        // 权威配�?
         if (typeof overrides.legitimacy === 'number') {
             setLegitimacy(overrides.legitimacy);
         }
@@ -5489,7 +5489,7 @@ export const useGameState = () => {
         rebellionStates,
         setRebellionStates,
 
-        // 执政联盟
+        // 联盟
         rulingCoalition,
         setRulingCoalition,
         legitimacy,

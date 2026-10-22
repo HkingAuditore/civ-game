@@ -321,7 +321,7 @@ const buildDriverContext = (stratumKey, {
         ? totalTaxPerCapita / incomePerCapita
         : (totalTaxPerCapita > 0 ? 1 : 0);
 
-    // 执政联盟敏感度配置：联盟阶层使用更低的阈值
+    // 联盟敏感度配置：联盟阶层使用更低的阈值
     const isCoalition = isCoalitionMember(stratumKey, rulingCoalition);
     const sensitivity = getCoalitionSensitivity(isCoalition);
 
@@ -566,7 +566,7 @@ export function updateStratumOrganization(
         hasActivePromise = false,
         driverContext = {},
         hasBasicShortage = true,
-        rulingCoalition = [], // 执政联盟成员
+        rulingCoalition = [], // 联盟成员
         classInfluence = {}, // 各阶层影响力
         totalInfluence = 0, // 总影响力
         difficultyLevel = DEFAULT_DIFFICULTY, // 游戏难度
@@ -631,7 +631,7 @@ export function updateStratumOrganization(
         // Apply difficulty modifier to growth rate
         growthRate = applyOrganizationGrowthModifier(growthRate, difficultyLevel);
 
-        // 应用合法性修正：高合法性时非联盟阶层组织度增长缓慢
+        // 应用权威修正：高权威时非联盟阶层组织度增长缓慢
         const coalitionInfluenceShare = calculateCoalitionInfluenceShare(rulingCoalition, classInfluence, totalInfluence);
         const currentLegitimacy = calculateLegitimacy(coalitionInfluenceShare);
         const legitimacyMod = getLegitimacyOrganizationModifier(currentLegitimacy, isInCoalition);
@@ -654,7 +654,7 @@ export function updateStratumOrganization(
 
     // 只有在无基础短缺且满意度较高(>60)时，才限制组织度上限为50%
     // 这意味着生活条件良好的阶层难以发动叛乱
-    // 注意：执政联盟成员也受此限制（如果他们很满意，就不该造反）
+    // 注意：联盟成员也受此限制（如果他们很满意，就不该造反）
     if (!hasBasicShortage && approval > 60) {
         const maxOrganizationWithoutBasicShortage = 50;
         if (newOrganization > maxOrganizationWithoutBasicShortage) {
@@ -666,7 +666,7 @@ export function updateStratumOrganization(
     }
 
     // 影响力过低时的组织度上限
-    // 【修改】执政联盟成员不受此限制
+    // 【修改】联盟成员不受此限制
     if (!isInCoalition && influenceShare < MIN_REBELLION_INFLUENCE) {
         const cappedOrganization = 75;
         if (newOrganization > cappedOrganization) {
@@ -733,7 +733,7 @@ export function updateAllOrganizationStates(
         classLivingStandard = {},
         livingStandardStreaks = {},
         epoch = 0,
-        rulingCoalition = [], // 执政联盟成员
+        rulingCoalition = [], // 联盟成员
         difficultyLevel = DEFAULT_DIFFICULTY, // 游戏难度
         organizationGrowthMod = 0, // [NEW] 组织度增长修正
         effectiveTaxModifier = 1,

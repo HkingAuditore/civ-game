@@ -316,7 +316,7 @@ export function createActiveRebellionEvent(stratumKey, rebellionState, hasMilita
         name: `${stratumName}阶层发动叛乱！`,
         icon: 'Skull',
         image: null,
-        description: `最坏的情况发生了！${stratumName}阶层已经公开举起反旗，宣布成立"${rebelNation.name}"，不再服从你的统治！\n\n叛军已经控制了相当一部分领土和资源，你的${stratumName}人口已经加入叛军阵营。这是一场生死存亡的较量，你必须做出抉择！\n\n叛军实力：约${rebelNation.population}人\n叛军财富：${rebelNation.wealth}银币`,
+        description: `最坏的情况发生了！${stratumName}阶层已经公开举起反旗，宣布成立"${rebelNation.name}"，不再服从你的治理！\n\n叛军已经控制了相当一部分领土和资源，你的${stratumName}人口已经加入叛军阵营。这是一场生死存亡的较量，你必须做出抉择！\n\n叛军实力：约${rebelNation.population}人\n叛军财富：${rebelNation.wealth}银币`,
         isRebellionEvent: true,
         rebellionPhase: REBELLION_PHASE.ACTIVE,
         rebellionStratum: stratumKey,
@@ -346,7 +346,7 @@ export function createOfficialCoupEvent(official, hasMilitary, isMilitaryRebelli
     options.push({
         id: 'accept_war',
         text: '应战',
-        description: `承认叛军为敌对政权，转为通过全面内战解决政变危机`,
+        description: `承认叛军为敌对势力，转为通过全面内战解决政变危机`,
         effects: {
             stability: -4,
         },

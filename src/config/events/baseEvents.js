@@ -758,7 +758,7 @@ export const BASE_EVENTS = [
             {
                 id: 'guide_public_opinion',
                 text: '借用学者引导舆论',
-                description: '让学者公开支持你的统治。',
+                description: '让学者公开支持你的治理。',
                 effects: {
                     stability: 6,
                     approval: {
@@ -2314,7 +2314,7 @@ export const BASE_EVENTS = [
             {
                 id: 'endorse_priest',
                 text: '册封为国师',
-                description: '利用其影响力巩固统治，提升文化和稳定。',
+                description: '利用其影响力巩固治理，提升文化和稳定。',
                 effects: {
                     resourcePercent: {
                         culture: 0.08,
@@ -2489,7 +2489,7 @@ export const BASE_EVENTS = [
         name: '成文法的呼声',
         icon: 'Gavel',
         image: null,
-        description: '随着社会日益复杂，民众和商人阶层要求制定一部清晰的成文法典，以取代贵族们的任意判决。这对你的统治既是挑战也是机遇。',
+        description: '随着社会日益复杂，民众和商人阶层要求制定一部清晰的成文法典，以取代贵族们的任意判决。这对你的治理既是挑战也是机遇。',
         triggerConditions: {
             minEpoch: 2,
             maxEpoch: 2,

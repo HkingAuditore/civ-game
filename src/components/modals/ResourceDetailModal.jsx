@@ -1314,7 +1314,7 @@ const ResourceDetailContent = ({
             const baseAmount = perBuilding * count;
             baseDemandTotal += baseAmount;
 
-            // 获取建筑原料消耗修正（官员效果 + 政治立场效果）
+            // 获取建筑原料消耗修正（官员效果 + 施政立场效果）
             const inputCostMod = sources.productionInputCost?.[building.id] || 0;
             const inputCostMultiplier = 1 + inputCostMod;
             const safeInputMultiplier = Math.max(0.2, inputCostMultiplier);

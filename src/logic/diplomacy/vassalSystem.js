@@ -71,8 +71,8 @@ export const INDEPENDENCE_CHANGE_CONFIG = {
         // 治理政策
         governance: {
             autonomous:   { effect: -0.03,  name: '自治' },
-            puppet_govt:  { effect: 0,      name: '傀儡政府' },
-            direct_rule:  { effect: 0.1,   name: '直接统治' },
+            puppet_govt:  { effect: 0,      name: '傀儡当局' },
+            direct_rule:  { effect: 0.1,   name: '直辖' },
         },
         // 军事政策
         military: {

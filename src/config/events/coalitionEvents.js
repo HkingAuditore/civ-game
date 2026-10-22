@@ -1,5 +1,5 @@
-// Coalition Events - 执政联盟相关事件
-// 处理在野阶层要求加入执政联盟等政治诉求
+// Coalition Events - 联盟相关事件
+// 处理在野阶层要求加入联盟等施政诉求
 
 import { STRATA } from '../strata.js';
 
@@ -59,7 +59,7 @@ export function checkCoalitionDemandCondition(gameState, threshold = 0.20) {
 }
 
 /**
- * 生成在野阶层要求加入执政联盟的事件
+ * 生成在野阶层要求加入联盟的事件
  * @param {string} stratumKey - 阶层键
  * @param {Object} gameState - 游戏状态
  * @returns {Object} 事件对象
@@ -82,17 +82,17 @@ export function createCoalitionDemandEvent(stratumKey, gameState) {
 
     return {
         id: `coalition_demand_${stratumKey}_${Date.now()}`,
-        name: `${stratumName}的政治诉求`,
+        name: `${stratumName}的施政诉求`,
         icon: 'Users',
         image: null,
-        description: `${stratumName}阶层的政治影响力已达到 ${influenceShare}%，他们对自己被排斥在执政联盟之外感到不满。代表们聚集在宫殿门前，要求获得政治参与权。"我们为这个国家贡献了如此之多，"他们的领袖在请愿书中写道，"却在重大决策中毫无发言权。这种状况必须改变。"`,
+        description: `${stratumName}阶层的政治影响力已达到 ${influenceShare}%，他们对自己被排斥在联盟之外感到不满。代表们聚集在宫殿门前，要求获得政治参与权。"我们为这个国家贡献了如此之多，"他们的领袖在请愿书中写道，"却在重大决策中毫无发言权。这种状况必须改变。"`,
         isDynamic: true,
         targetStratum: stratumKey,
         compensationAmount, // 存储补偿金额供显示使用
         options: [
             {
                 id: 'accept_join',
-                text: '同意他们加入执政联盟',
+                text: '同意他们加入联盟',
                 description: `允许${stratumName}参与国家决策，换取他们的支持`,
                 effects: {
                     stability: 5,
@@ -124,7 +124,7 @@ export function createCoalitionDemandEvent(stratumKey, gameState) {
             {
                 id: 'refuse_firmly',
                 text: '断然拒绝',
-                description: '明确表示他们不配参与执政，强硬维护现有权力结构',
+                description: '明确表示他们不配参与共治，强硬维护现有权力结构',
                 effects: {
                     stability: -8,
                     approval: {

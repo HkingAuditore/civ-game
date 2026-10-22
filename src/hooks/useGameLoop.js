@@ -866,7 +866,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setBuildingUpgrades, // For owner auto-upgrade
         autoRecruitEnabled,
         targetArmyComposition,
-        rulingCoalition, // 执政联盟鎴愬憳
+        rulingCoalition, // 联盟鎴愬憳
         legitimacy, // 褰撳墠鍚堟硶鎬у€?
         setLegitimacy, // 鍚堟硶鎬ф洿鏂板嚱鏁?
         setModifiers, // Modifiers更新函数
@@ -975,7 +975,7 @@ difficulty, // 游戏难度
         totalInfluence,
         birthAccumulator,
         stability,
-        rulingCoalition, // 执政联盟鎴愬憳
+        rulingCoalition, // 联盟鎴愬憳
         legitimacy, // 褰撳墠鍚堟硶鎬у€?
 difficulty, // 游戏难度
         officials,
@@ -1481,7 +1481,7 @@ difficulty, // 游戏难度
                 // 叛乱系统
                 rebellionStates: current.rebellionStates,
 
-                // 执政联盟
+                // 联盟
                 rulingCoalition: current.rulingCoalition,
                 legitimacy: current.legitimacy,
 
@@ -1776,7 +1776,7 @@ difficulty, // 游戏难度
                 //     console.log('  📌 收入加成倍率:', `×${breakdown.incomePercentMultiplier.toFixed(2)}`);
                 // }
                 // if (taxes.efficiency && taxes.efficiency < 1) {
-                //     console.log('  📊 税收效率:', (taxes.efficiency * 100).toFixed(1) + '%',
+                //     console.log('  📊 征收效率:', (taxes.efficiency * 100).toFixed(1) + '%',
                 //         `(损失: ${(totalIncome * (1 - taxes.efficiency)).toFixed(2)} 银币)`);
                 // }
                 // console.groupEnd();
@@ -3411,7 +3411,7 @@ difficulty, // 游戏难度
                     }                    if (typeof result.officialsSimCursor === 'number' && typeof setOfficialsSimCursor === 'function') {
                         setOfficialsSimCursor(result.officialsSimCursor);
                     }
-                    // 更新官员容量（基于时代、政体、科技动态计算）
+                    // 更新官员容量（基于时代、体制、科技动态计算）
                     if (typeof result.effectiveOfficialCapacity === 'number' && typeof setOfficialCapacity === 'function') {
                         setOfficialCapacity(result.effectiveOfficialCapacity);
                     }
@@ -5796,7 +5796,7 @@ _battleCooldown: 45 + Math.floor(Math.random() * 60),
                         classLivingStandard: result.classLivingStandard || {},
                         livingStandardStreaks: result.livingStandardStreaks || current.livingStandardStreaks || {},
                         epoch: current.epoch || 0,
-                        rulingCoalition: current.rulingCoalition || [], // 执政联盟
+                        rulingCoalition: current.rulingCoalition || [], // 联盟
                         difficultyLevel: current.difficulty, // 游戏难度
                         organizationGrowthMod: result.modifiers?.officialEffects?.organizationGrowthMod || 0,
                         effectiveTaxModifier: result.effectiveTaxModifier ?? 1, // [NEW] 缁勭粐搴﹀闀夸慨姝?

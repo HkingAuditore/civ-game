@@ -157,7 +157,7 @@ export const SCENARIOS = [
         icon: '🦁',
         description: '「圣马可的雄狮永不沉睡。」亚德里亚海上的明珠，商人共和国的典范。总督与议会共治，商队远航四海，金币源源不断。',
         tags: ['商业霸权', '寡头共和', '时代5'],
-        highlights: ['商人执政', '海上贸易', '银行金融', '玻璃工艺'],
+        highlights: ['商人主政', '海上贸易', '银行金融', '玻璃工艺'],
         overrides: {
             resources: { 
                 silver: 8000000, food: 1200000, wood: 350000, stone: 400000, 

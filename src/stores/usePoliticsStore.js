@@ -8,7 +8,7 @@ export const usePoliticsStore = create((set, get) => ({
     rebellionStates: {},
     setRebellionStates: (v) => set({ rebellionStates: typeof v === 'function' ? v(get().rebellionStates) : v }),
 
-    // 执政联盟
+    // 联盟
     rulingCoalition: ['peasant'],
     setRulingCoalition: (v) => set({ rulingCoalition: typeof v === 'function' ? v(get().rulingCoalition) : v }),
     legitimacy: 0,

@@ -3,7 +3,7 @@
  * 每个国家包含：
  * - id: 国家唯一标识
  * - name: 国家名称
- * - type: 政体类型
+ * - type: 体制类型
  * - color: 显示颜色
  * - desc: 国家描述
  */
@@ -751,7 +751,7 @@ export const COUNTRIES = [
     {
         id: 'shogunate',
         name: "幕府将军领",
-        type: "武家政权",
+        type: "武家幕府",
         color: "text-rose-400",
         desc: "菊与刀，樱花与钢铁。在浮世的虚幻中，唯有忠诚与名誉是真实的重担。幕府的威严笼罩列岛，武士的刀刃在寂静中出鞘，守护着这片日出之国的封闭与静美。",
         appearEpoch: 3,
@@ -781,7 +781,7 @@ export const COUNTRIES = [
         name: "天朝上国",
         type: "科举帝制",
         color: "text-yellow-500",
-        desc: "日月照耀之处，皆为汉土。庞大的官僚机器昼夜运转，维系着这古老帝国的脉搏。北驱鞑虏，南下西洋，我们在传统的厚重帷幕中，审视着自身与世界，既是中心，也是孤岛。",
+        desc: "日月所照，皆为王土。庞大的官僚机器昼夜运转，维系着这古老帝国的脉搏。北御边患，南下西洋，我们在传统的厚重帷幕中，审视着自身与世界，既是中心，也是孤岛。",
         appearEpoch: 3,
         expireEpoch: 9,
         marketVolatility: 0.22,
@@ -953,7 +953,7 @@ export const COUNTRIES = [
     {
         id: 'tsarist_empire',
         name: "沙皇帝国",
-        type: "专制帝国",
+        type: "集权帝国",
         color: "text-indigo-400",
         desc: "双头鹰注视着东西方，在无尽的雪原上，沙皇是唯一的父亲。东正教的钟声在寒风中回荡，农奴的脊梁支撑起金碧辉煌的宫殿。这是一个苦难与宏大并存的灵魂，冰冷如西伯利亚。",
         appearEpoch: 4,
@@ -1368,7 +1368,7 @@ export const COUNTRIES = [
     {
         id: 'southern_agri_bloc',
         name: "南方农业联盟",
-        type: "临时联合政府",
+        type: "临时联合共治",
         color: "text-lime-300",
         desc: "在这个饥饿的世界，手中有粮，心中不慌。他们是全球的粮仓，也是这种植园经济的囚徒。每一粒出口的小麦都浸透了汗水与农药，为了换取那些永远不够用的工业零件。",
         appearEpoch: 7,

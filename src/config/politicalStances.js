@@ -1,12 +1,12 @@
 /**
- * 政治立场配置
- * 定义官员的政治倾向、议题和效果触发条件
+ * 施政立场配置
+ * 定义官员的施政倾向、议题和效果触发条件
  * 注意：条件数值在分配立场时动态生成
  */
 
 import { STRATA } from './strata.js';
 
-// ========== 政治议题定义 ==========
+// ========== 施政议题定义 ==========
 export const POLITICAL_ISSUES = {
     equality: { name: '平等', icon: 'Equal', description: '关注贫富差距和社会公正' },
     collectivism: { name: '集体主义', icon: 'Users', description: '集体利益优先' },
@@ -156,16 +156,16 @@ const CONDITION_TYPES = {
         text: (params) => `平均税率 < ${params.threshold}%`,
     },
 
-    // 执政联盟
+    // 联盟
     coalition_size_above: {
         generate: () => ({ threshold: 2 + Math.floor(Math.random() * 3) }), // 2-4
         check: (params, gs) => (gs.rulingCoalition?.length || 0) >= params.threshold,
-        text: (params) => `执政联盟 ≥ ${params.threshold}个阶层`,
+        text: (params) => `联盟 ≥ ${params.threshold}个阶层`,
     },
     coalition_size_below: {
         generate: () => ({ threshold: 2 + Math.floor(Math.random() * 2) }), // 2-3
         check: (params, gs) => (gs.rulingCoalition?.length || 0) <= params.threshold,
-        text: (params) => `执政联盟 ≤ ${params.threshold}个阶层`,
+        text: (params) => `联盟 ≤ ${params.threshold}个阶层`,
     },
     coalition_includes: {
         generate: () => {
@@ -173,14 +173,14 @@ const CONDITION_TYPES = {
             return { stratum };
         },
         check: (params, gs) => gs.rulingCoalition?.includes(params.stratum),
-        text: (params) => `${STRATA[params.stratum]?.name || params.stratum}参与执政`,
+        text: (params) => `${STRATA[params.stratum]?.name || params.stratum}参与共治`,
     },
 
-    // 合法性
+    // 权威
     legitimacy_above: {
         generate: () => ({ threshold: 40 + Math.floor(Math.random() * 40) }), // 40-80
         check: (params, gs) => (gs.legitimacy || 50) >= params.threshold,
-        text: (params) => `合法性 ≥ ${params.threshold}`,
+        text: (params) => `权威 ≥ ${params.threshold}`,
     },
 
     // 战争状态
@@ -360,7 +360,7 @@ const CONDITION_TYPES = {
     },
 };
 
-// ========== 政治立场模板 ==========
+// ========== 施政立场模板 ==========
 // 每种立场定义其可能使用的条件类型和效果
 const STANCE_TEMPLATES = {
     // ========== 石器时代 (epoch >= 0) ==========
@@ -441,7 +441,7 @@ const STANCE_TEMPLATES = {
         color: 'text-purple-400',
         unlockEpoch: 1,
         historicalRef: '斯巴达双王制',
-        description: '政权归于少数贵族',
+        description: '权柄归于少数贵族',
         issues: ['hierarchy', 'tradition'],
         conditionTypes: ['stratum_influence_above', 'coalition_includes', 'legitimacy_above'],
         preferredStrata: ['landowner', 'official', 'merchant'],
@@ -451,7 +451,7 @@ const STANCE_TEMPLATES = {
     },
 
     theocracy: {
-        name: '神权政治',
+        name: '神权体制',
         spectrum: 'right',
         icon: 'Church',
         color: 'text-yellow-300',
@@ -706,7 +706,7 @@ const STANCE_TEMPLATES = {
     },
 
     enlightened_despotism: {
-        name: '开明专制',
+        name: '开明治理',
         spectrum: 'center',
         icon: 'GraduationCap',
         color: 'text-indigo-400',
@@ -777,7 +777,7 @@ const STANCE_TEMPLATES = {
         color: 'text-red-500',
         unlockEpoch: 6,
         historicalRef: '共产党宣言',
-        description: '工人阶级专政',
+        description: '工人阶级体制',
         issues: ['equality', 'revolution', 'collectivism'],
         conditionTypes: ['coalition_includes', 'stratum_influence_above'],
         preferredStrata: ['worker', 'miner', 'artisan'],
@@ -927,7 +927,7 @@ const STANCE_TEMPLATES = {
     },
 };
 
-// ========== 运行时政治立场存储 ==========
+// ========== 运行时施政立场存储 ==========
 // 此对象存储带有生成条件的立场实例
 export const POLITICAL_STANCES = {};
 
@@ -952,7 +952,7 @@ export function getAvailableStances(epoch) {
 }
 
 /**
- * 为官员生成带动态条件的政治立场
+ * 为官员生成带动态条件的施政立场
  * @param {string} sourceStratum - 官员出身阶层
  * @param {number} epoch - 当前时代
  * @param {Object} market - 当前市场数据（包含 prices 等信息）
@@ -1037,7 +1037,7 @@ export function assignPoliticalStance(sourceStratum, epoch, market = null) {
         return sourceStratum;
     };
 
-    // === 强制添加一个执政联盟相关条件 ===
+    // === 强制添加一个联盟相关条件 ===
     const coalitionCondTypes = ['coalition_includes', 'coalition_size_above', 'coalition_size_below'];
     const coalitionType = coalitionCondTypes[Math.floor(Math.random() * coalitionCondTypes.length)];
     const coalitionCondDef = CONDITION_TYPES[coalitionType];

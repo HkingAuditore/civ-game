@@ -1,5 +1,5 @@
 
-// 政令标签页组件 -> 改名为政治标签页 (由于不再只包含政令)
+// 政令标签页组件 -> 改名为政务标签页 (由于不再只包含政令)
 // 显示政府、税收及官员管理
 
 import React, { memo } from 'react';
@@ -524,7 +524,7 @@ const BusinessTaxCard = ({ building, displayPercent, buildingCount, draftPercent
 };
 
 /**
- * 政治标签页组件 (PoliticsTab)
+ * 政务标签页组件 (PoliticsTab)
  * 管理政府、税收和官员
  */
 const PoliticsTabComponent = ({
@@ -959,7 +959,7 @@ const PoliticsTabComponent = ({
                 >
                     <span className="flex items-center justify-center gap-1.5 font-bold">
                         <Icon name="Landmark" size={14} />
-                        政府
+                        政务
                     </span>
                 </button>
                 <button

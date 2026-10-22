@@ -5,7 +5,7 @@ import { formatEffect, CATEGORY_META } from '../../../logic/officials/effectForm
 
 /**
  * 官员全部加成汇总面板
- * 把所有在任官员的加成（基础效果 + 政治立场效果 + 部长任命加成）
+ * 把所有在任官员的加成（基础效果 + 施政立场效果 + 部长任命加成）
  * 一次性按类别汇总展示，无需逐张点开官员卡片。
  * 可折叠，默认收起。
  */
@@ -112,7 +112,7 @@ export const OfficialEffectsSummary = ({
                         })
                     )}
                     <div className="text-xs text-gray-600 pt-1 border-t border-gray-700/30 leading-snug">
-                        汇总为所有在任官员效果、政治立场效果与部长任命加成的净总和（未付薪时基础效果减半）。
+                        汇总为所有在任官员效果、施政立场效果与部长任命加成的净总和（未付薪时基础效果减半）。
                     </div>
                 </div>
             )}

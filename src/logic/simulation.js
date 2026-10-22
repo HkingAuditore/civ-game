@@ -550,8 +550,8 @@ export const simulateTick = ({
     eventBuildingProductionModifiers = {}, // { buildingIdOrCat: percentModifier }
     livingStandardStreaks = {},
     buildingUpgrades = {}, // 建筑升级状?
-    rulingCoalition = [], // 执政联盟成员阶层
-    previousLegitimacy = 0, // 上一tick的合法性值，用于计算税收修正
+    rulingCoalition = [], // 联盟成员阶层
+    previousLegitimacy = 0, // 上一tick的权威值，用于计算税收修正
     migrationCooldowns = {}, // 阶层迁移冷却状?
 
     difficulty, // 游戏难度设置
@@ -1132,7 +1132,7 @@ export const simulateTick = ({
     if (activeOfficialEffects.researchSpeed) {
         bonuses.scienceBonus = (bonuses.scienceBonus || 0) + activeOfficialEffects.researchSpeed;
     }
-    // 税收效率 ?存储供税收计算使?
+    // 征收效率 ?存储供税收计算使?
     bonuses.taxEfficiencyBonus = activeOfficialEffects.taxEfficiency || 0;
     // 腐败 存储供税收计算使用(负面效果)
     bonuses.corruption = activeOfficialEffects.corruption || 0;
@@ -1158,7 +1158,7 @@ export const simulateTick = ({
     bonuses.resourceWaste = activeOfficialEffects.resourceWaste || {};
     // 联盟满意度 存储供满意度计算使用
     bonuses.coalitionApproval = activeOfficialEffects.coalitionApproval || 0;
-    // 合法性加成 存储供合法性修正使用
+    // 权威加成 存储供权威修正使用
     bonuses.legitimacyBonus = activeOfficialEffects.legitimacyBonus || 0;
     // 组织度增长修正（负值降低增长）
     bonuses.organizationGrowthMod = (bonuses.organizationGrowthMod || 0) + (activeOfficialEffects.organizationDecay || 0);
@@ -1173,7 +1173,7 @@ export const simulateTick = ({
     // 生产原料成本修正 ?存储供建筑生产计算使?
     bonuses.officialProductionInputCost = activeOfficialEffects.productionInputCost || {};
 
-    // === 应用政治立场效果 ===
+    // === 应用施政立场效果 ===
     // 构建简化的游戏状态用于条件检?
     const stanceCheckState = {
         classApproval: previousApproval,
@@ -1388,7 +1388,7 @@ export const simulateTick = ({
     }
 
     // Apply Polity Effects (Government Type Bonuses)
-    // 根据当前执政联盟计算政体，并应用政体效果
+    // 根据当前联盟计算体制，并应用体制效果
     // Use previous tick data to avoid circular dependency and TDZ issues
     let currentPolityEffects = null;
     if (rulingCoalition && rulingCoalition.length > 0) {
@@ -1689,7 +1689,7 @@ export const simulateTick = ({
     const { tradeDisruptionPenalty: warTradeDisruption } = calculateWartimeTradeDisruption(activeWarCount);
 
     let frontlineProductionPenalty = 0;
-    let frontlineTaxEfficiencyPenalty = 0; // 方案A：收集税收效率惩?
+    let frontlineTaxEfficiencyPenalty = 0; // 方案A：收集征收效率惩?
     if (playerActiveFrontsForDamage.length > 0) {
         const silverIncomeEstimate = Object.values(res || {}).reduce((sum, value) => sum + Number(value || 0), 0) * 0.1;
         playerActiveFrontsForDamage.forEach((front) => {
@@ -2140,10 +2140,10 @@ export const simulateTick = ({
 
     let taxModifier = 1.0;
 
-    // 执政联盟合法性计算（初步，待影响力计算后会精确计算）
+    // 联盟权威计算（初步，待影响力计算后会精确计算）
     // 此处使用上一tick的数据估算，避免循环依赖
     let coalitionLegitimacy = 0;
-    // 使用上一tick的合法性计算税收修正（避免循环依赖?
+    // 使用上一tick的权威计算税收修正（避免循环依赖?
     let legitimacyTaxModifier = getLegitimacyTaxModifier(previousLegitimacy);
 
     // 税收征收效率：基础效率 = taxModifier × legitimacyTaxModifier（范围 [0.3, 1.0]）
@@ -2160,7 +2160,7 @@ export const simulateTick = ({
     const estimatePotentialIncomeForVacancy = (role) => {
         const VACANT_BONUS = 1.2;
 
-        // [FIX] 计算税收效率，用于补贴计?
+        // [FIX] 计算征收效率，用于补贴计?
         // 注意：此?efficiency 尚未计算，使?currentStability 估算
         const estimatedStabilityFactor = Math.min(1.5, Math.max(0.5, 1 + (currentStability - 50) / 100));
         const estimatedEfficiency = estimatedStabilityFactor;
@@ -2799,12 +2799,12 @@ export const simulateTick = ({
         let inputCostPerMultiplier = 0;
         let isInLowEfficiencyMode = false;
 
-        // === 应用生产成本修正（官员效?+ 政治立场效果?===
+        // === 应用生产成本修正（官员效?+ 施政立场效果?===
         // 只对?input 且有 output 的建筑生效（加工类建筑）
         const hasInput = Object.keys(effectiveOps.input).length > 0;
         const hasOutput = Object.keys(effectiveOps.output).some(k => k !== 'maxPop' && k !== 'militaryCapacity');
         if (hasInput && hasOutput) {
-            // 合并官员效果和政治立场效?
+            // 合并官员效果和施政立场效?
             const officialInputCostMod = bonuses.officialProductionInputCost?.[b.id] || 0;
             const stanceInputCostMod = bonuses.stanceProductionInputCost?.[b.id] || 0;
             // V2: 理念建筑消耗修正（按建筑分类 scope）
@@ -3675,13 +3675,13 @@ export const simulateTick = ({
                 // taxBreakdown ?Ledger 自动更新
             } else if (totalBusinessTax < 0) {
                 // [FIX] 负值：?owner 比例发放补贴
-                // 补贴也应该受税收效率影响（腐败官员会贪污补贴?
+                // 补贴也应该受征收效率影响（腐败官员会贪污补贴?
                 // 注意：此?efficiency 尚未计算，使?currentStability 估算
                 // 实际到账金额 = 补贴金额 × 效率
                 const subsidyAmount = Math.abs(totalBusinessTax);
                 const treasury = res.silver || 0;
 
-                // 计算实际发放金额（考虑税收效率?
+                // 计算实际发放金额（考虑征收效率?
                 // 使用与税收相同的效率计算逻辑
                 const estimatedStabilityFactor = Math.min(1.5, Math.max(0.5, 1 + (currentStability - 50) / 100));
                 const estimatedEfficiency = estimatedStabilityFactor;
@@ -5221,7 +5221,7 @@ export const simulateTick = ({
         let newLoyalty = normalizedOfficial.loyalty ?? 75; // 默认值兼容旧存档
         let newLowLoyaltyDays = normalizedOfficial.lowLoyaltyDays ?? 0;
 
-        // 政治诉求满足程度
+        // 施政诉求满足程度
         // 注意：politicalStance 可能是字符串（stanceId）或对象，需要兼容两种情?
         const stanceId = typeof normalizedOfficial.politicalStance === 'string'
             ? normalizedOfficial.politicalStance
@@ -5268,7 +5268,7 @@ export const simulateTick = ({
         const loyaltyChangeFactors = [];
         let totalLoyaltyChange = 0;
 
-        // 政治诉求
+        // 施政诉求
         const stanceChange = isStanceMet ? DAILY_CHANGES.stanceSatisfied : DAILY_CHANGES.stanceUnsatisfied;
         newLoyalty += stanceChange;
         totalLoyaltyChange += stanceChange;
@@ -5500,7 +5500,7 @@ export const simulateTick = ({
         const livingStandard = classLivingStandard[key];
         let livingStandardApprovalCap = livingStandard?.approvalCap ?? 100;
 
-        // 执政联盟阶层的approvalCap惩罚（期望提高）
+        // 联盟阶层的approvalCap惩罚（期望提高）
         const isCoalition = isCoalitionMember(key, rulingCoalition);
         let coalitionCapPenalty = 0;
         if (isCoalition) {
@@ -5693,7 +5693,7 @@ export const simulateTick = ({
             stanceTargetBonus: 0,
             ideologyTargetBonus: 0,
             officialTargetBonus: 0,
-            legitimacyPenalty: 0,  // [NEW] 非法政府惩罚
+            legitimacyPenalty: 0,  // [NEW] 权威不足惩罚
             taxShockPenalty: 0,
             shockCapApplied: null,
             currentApprovalStart: 0,
@@ -5784,7 +5784,7 @@ export const simulateTick = ({
             approvalBreakdown[key].officialTargetBonus = officialBonus;
         }
 
-        // [FIX] 非法政府惩罚：使用上一tick的合法性来影响目标满意?
+        // [FIX] 权威不足惩罚：使用上一tick的权威来影响目标满意?
         // 而不是在惯性计算之后直接扣除当前好感度（这会导致无限下降的BUG?
         const prevLegitimacyModifier = getLegitimacyApprovalModifier(previousLegitimacy);
         if (prevLegitimacyModifier < 0) {
@@ -5913,7 +5913,7 @@ export const simulateTick = ({
 
     let totalInfluence = Object.values(classInfluence).reduce((sum, val) => sum + val, 0);
 
-    // 执政联盟合法性精确计算（影响力已计算完成?
+    // 联盟权威精确计算（影响力已计算完成?
     const coalitionInfluenceShare = calculateCoalitionInfluenceShare(rulingCoalition, classInfluence, totalInfluence);
     coalitionLegitimacy = calculateLegitimacy(coalitionInfluenceShare);
     if (bonuses.legitimacyBonus) {
@@ -5923,7 +5923,7 @@ export const simulateTick = ({
     const legitimacyApprovalModifier = getLegitimacyApprovalModifier(coalitionLegitimacy);
     perfEnd('influenceCalc');
 
-    // [FIX BUG] 非法政府满意度惩罚的应用方式已改变：
+    // [FIX BUG] 权威不足满意度惩罚的应用方式已改变：
     // 之前?BUG: 每个 tick 都直接从当前好感度扣?-15，导致无限下?
     // 修复: 惩罚已在上方惯性计算循环中应用?targetApproval，这里不再重复应?
     // 保留此处代码注释以说明设计意?
@@ -6500,7 +6500,7 @@ export const simulateTick = ({
             next.relation = Math.min(100, Math.max(0, (next.relation ?? 50) - dailyPenalty));
         }
 
-        // 应用官员和政治立场的外交加成到玩家与AI的关?
+        // 应用官员和施政立场的外交加成到玩家与AI的关?
         if (!isExpiredNation && bonuses.diplomaticBonus && !next.isRebelNation && !next.isAtWar) {
             // On hard: improving is harder
             const dailyBonus = (bonuses.diplomaticBonus / 30) * relationMultipliers.good;
@@ -6757,12 +6757,12 @@ export const simulateTick = ({
         if (rebellionSystemResult && rebellionSystemResult.events) {
             for (const event of rebellionSystemResult.events) {
                 if (event.type === 'civil_war_started') {
-                    logs.push(`⚔️ ${event.nationName} 爆发内战！反对派势力与政府军交战中...`);
+                    logs.push(`⚔️ ${event.nationName} 爆发内战！反对派势力与官军交战中...`);
                 } else if (event.type === 'civil_war_ended') {
                     if (event.winner === 'rebels') {
-                        logs.push(`🏴 ${event.nationName} 的叛军取得胜利，政权更迭！${event.newGovernment || '新政权'}！`);
+                        logs.push(`🏴 ${event.nationName} 的叛军取得胜利，政权更迭！${event.newGovernment || '新当局'}！`);
                     } else {
-                        logs.push(`🏛️ ${event.nationName} 的政府军平定叛乱，恢复秩序。`);
+                        logs.push(`🏛️ ${event.nationName} 的官军平定叛乱，恢复秩序。`);
                     }
                 }
             }
@@ -8156,7 +8156,7 @@ export const simulateTick = ({
         // 空岗位吸引力加成系数
         const VACANT_BONUS = 1.2;
 
-        // [FIX] 计算税收效率，用于补贴计?
+        // [FIX] 计算征收效率，用于补贴计?
         const rawEfficiency = efficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
         const effectiveEfficiency = Math.max(0, Math.min(1, rawEfficiency));
 
@@ -8860,9 +8860,9 @@ export const simulateTick = ({
     });
     totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
 
-    // 税收效率：在“入库口径”为实际支付的前提下，税收效率应在征收环节就影响“实际入库”?
+    // 征收效率：在“入库口径”为实际支付的前提下，征收效率应在征收环节就影响“实际入库”?
     // 目前 Ledger ?taxBreakdown.xxx 代表真实转入国库的税额（实际支付），因此这里不再二次扣除“效率损失”?
-    // 依然保留税收效率用于 UI 展示与后续系统（如需要可在征收处注入效率）?
+    // 依然保留征收效率用于 UI 展示与后续系统（如需要可在征收处注入效率）?
     const rawTaxEfficiency = efficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
     const effectiveTaxEfficiency = Math.max(0, Math.min(1, rawTaxEfficiency));
 
@@ -8892,7 +8892,7 @@ export const simulateTick = ({
     let collectedBusinessTax = taxBreakdown.businessTax;
     let collectedTariff = (taxBreakdown.tariff || 0); // 关税收入
 
-    // 方案A：战争税收效率惩??按百分比扣减所有税收，在征收环节就体现
+    // 方案A：战争征收效率惩??按百分比扣减所有税收，在征收环节就体现
     const warTaxFactor = Math.max(0, 1 - frontlineTaxEfficiencyPenalty);
     if (frontlineTaxEfficiencyPenalty > 0.001) {
         const preLossTotal = collectedHeadTax + collectedIndustryTax + collectedBusinessTax + collectedTariff;
@@ -8996,7 +8996,7 @@ export const simulateTick = ({
 
     // console.log('[TAX SUMMARY DEBUG]', {
     //     'taxBreakdown.headTax（实际入库）': taxBreakdown.headTax.toFixed(2),
-    //     '税收效率': effectiveTaxEfficiency.toFixed(3),
+    //     '征收效率': effectiveTaxEfficiency.toFixed(3),
     //     'collectedHeadTax（实际入库）': collectedHeadTax.toFixed(2),
     //     '收入倍率': incomePercentMultiplier.toFixed(3),
     //     'finalHeadTax（最终显示）': (collectedHeadTax * incomePercentMultiplier).toFixed(2)
@@ -9007,10 +9007,10 @@ export const simulateTick = ({
 
     // 税收处理
     // 注意：Ledger 已将税收 (taxBreakdown.xxx) 添加到国库并记录日志
-    // 税收效率损失已通过腐败分配给官员（?6082-6105 行）
+    // 征收效率损失已通过腐败分配给官员（?6082-6105 行）
     // 这里只需要处理收入倍率加成（如?incomePercentMultiplier > 1?
 
-    // [FIX] 方案B：税收效率只影响国库收入，不凭空增加银币
+    // [FIX] 方案B：征收效率只影响国库收入，不凭空增加银币
     // 阶层已支付全额税款（在征收环节），国库收到的是扣除腐败后的金?
     // incomePercentMultiplier 不应该凭空增加银币，而应该在征收时就体现?effectiveTaxModifier ?
 
@@ -9634,9 +9634,9 @@ export const simulateTick = ({
         activeBuffs: newActiveBuffs,
         activeDebuffs: newActiveDebuffs,
         stability: stabilityValue,
-        legitimacy: coalitionLegitimacy, // 执政联盟合法?
+        legitimacy: coalitionLegitimacy, // 联盟合法?
         legitimacyTaxModifier, // 税收修正系数
-        effectiveTaxModifier, // 最终税收修正（含合法性、政策和额外加成）
+        effectiveTaxModifier, // 最终税收修正（含权威、政策和额外加成）
         logs,
         vassalDiplomacyRequests,
         market: {
@@ -9706,7 +9706,7 @@ export const simulateTick = ({
                 // 阶层财富增长对需求的影响（财富越高需求越高）
                 // 阶层财富增长对需求的影响（财富越高需求越高）
                 stratumWealthMultiplier: stratumWealthMultipliers,
-                // 建筑原料消耗修正（官员效果 + 政治立场效果，累加合并）
+                // 建筑原料消耗修正（官员效果 + 施政立场效果，累加合并）
                 productionInputCost: _mergedProductionInputCost,
                 // 战争经济：建筑战损统计和前线产出惩罚
                 warDamagedBuildings: warDamagedBuildings || {},
@@ -9759,7 +9759,7 @@ export const simulateTick = ({
         _cleanedNationIds: cleanedNationIds,
         activeBattles, // [NEW] 进行中的战斗
         officials: updatedOfficials, // 更新后的官员列表（含财务数据?
-        // 计算有效官员容量（基于时代、政体、科技和理念）
+        // 计算有效官员容量（基于时代、体制、科技和理念）
         effectiveOfficialCapacity: calculateOfficialCapacity(epoch, currentPolityEffects || {}, techsUnlocked, bonuses.ideoOfficialCapacityBonus || 0),
         buildings: _buildingsModified ? builds : null, // [FIX] Only return when actually modified to prevent unnecessary state updates
         lastMinisterExpansionDay: nextLastMinisterExpansionDay,

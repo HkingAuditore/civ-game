@@ -335,7 +335,7 @@ const TRADE_POLICY_OPTIONS = [
     {
         id: 'free',
         title: '自由贸易',
-        description: '允许附庸与任何国家自由贸易，换取政治稳定',
+        description: '允许附庸与任何国家自由贸易，换取局势稳定',
         effects: '无价格优势、无关税减免，独立倾向增速-20%',
         effectColor: 'text-green-400',
     },
@@ -391,15 +391,15 @@ const GOVERNANCE_POLICY_OPTIONS = [
     },
     {
         id: 'puppet_govt',
-        title: '傀儡政府',
-        description: '扶植亲玩家的本地政府',
+        title: '傀儡当局',
+        description: '扶植亲附庸的本地当局',
         effects: '维持现状（默认）',
         effectColor: 'text-gray-400',
     },
     {
         id: 'direct_rule',
-        title: '直接统治',
-        description: '中央政府直接管理附庸内政',
+        title: '直辖',
+        description: '核心治理机构直接管理附庸内政',
         effects: '朝贡+30%，控制成本+50%，独立倾向-20%',
         effectColor: 'text-red-400',
     },

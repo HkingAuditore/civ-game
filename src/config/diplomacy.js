@@ -211,16 +211,16 @@ export const GOVERNANCE_POLICY_DEFINITIONS = {
     },
     puppet_govt: {
         id: 'puppet_govt',
-        name: '傀儡政府',
-        description: '扶植亲玩家的本地政府',
+        name: '傀儡当局',
+        description: '扶植亲附庸的本地当局',
         tributeMod: 1.0,              // Normal tribute
         controlCostMod: 1.0,          // 50% control cost (cheaper)
         independenceGrowthMod: 1.0,   // Normal
     },
     direct_rule: {
         id: 'direct_rule',
-        name: '直接统治',
-        description: '中央政府直接管理附庸内政',
+        name: '直辖',
+        description: '核心治理机构直接管理附庸内政',
         tributeMod: 1.3,              // +30% tribute
         controlCostMod: 2.5,          // 150% control cost (expensive)
         independenceGrowthMod: 0.8,   // 20% slower (active suppression)
@@ -291,7 +291,7 @@ export const VASSAL_POLICY_SATISFACTION_EFFECTS = {
     governance: {
         autonomous: { elites: 3, commoners: 3, underclass: 3 },
         puppet_govt: { elites: 0, commoners: 0, underclass: 0 },
-        // 直接统治：削弱本地精英权力，民众感受到外来压迫
+        // 直辖：削弱本地精英权力，民众感受到外来压迫
         direct_rule: { elites: -8, commoners: -10, underclass: -10 },
     },
     military: {
@@ -519,7 +519,7 @@ export const INDEPENDENCE_WAR_CONDITIONS = {
 
 /**
  * AI国家简化阶层配置模板
- * 不同政体类型的默认阶层比例和满意度
+ * 不同体制类型的默认阶层比例和满意度
  */
 export const SOCIAL_STRUCTURE_TEMPLATES = {
     monarchy: {
@@ -814,8 +814,8 @@ export const INDEPENDENCE_MODEL_CONFIG = {
 };
 
 /**
- * 根据政体类型获取阶层结构
- * @param {string} governmentType - 政体类型
+ * 根据体制类型获取阶层结构
+ * @param {string} governmentType - 体制类型
  * @returns {Object} 阶层结构
  */
 export const getSocialStructureTemplate = (governmentType) => {
