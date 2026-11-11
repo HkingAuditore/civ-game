@@ -108,7 +108,7 @@ export const CLASS_CONFLICT_EVENTS = [
     name: '工农联盟的萌芽',
     icon: 'Users',
     image: null,
-    description: '工厂工人和佃农代表在酒馆里秘密会面，他们发现彼此面临着相同的困境——低工资、长工时、被剥削。有人提议组建互助会，也有人主张更激进的行动。',
+    description: '工坊的伙计和佃农的代表在酒馆里碰了头，聊起来才发现彼此的难处差不多——工钱低、工时长、日子紧。有人提议凑个互助会，也有人想干点更出格的事。',
     triggerConditions: {
       minEpoch: 5,
       classConditions: {
@@ -785,10 +785,10 @@ export const CLASS_CONFLICT_EVENTS = [
   // --- Political: Constitutional Crisis ---
   {
     id: 'constitutional_crisis',
-    name: '宪政危机',
+    name: '章程之争',
     icon: 'FileText',
     image: null,
-    description: '新兴的资产阶级和知识分子联合起来，要求召开制宪会议，限制君主权力，建立代议制政府。传统贵族和教士则坚决捍卫旧制度。街头出现了对立的示威人群，国家正处于历史的十字路口。',
+    description: '匠作与读书人联合起来，要求立下明文章程，限制东家一言决断。老世家与教门则坚决维护旧例。街面上出现了对峙的人群，局面正处在岔路口。',
     triggerConditions: {
       minEpoch: 5,
       classConditions: {
@@ -807,8 +807,8 @@ export const CLASS_CONFLICT_EVENTS = [
     options: [
       {
         id: 'grant_constitution',
-        text: '顺应潮流，颁布宪法',
-        description: '自上而下的改革，在保留部分权力的同时迎接新时代。',
+        text: '顺应众议，立下章程',
+        description: '既留住主导之权，也开一条新路。',
         effects: {
           resourcePercent: {
             science: 0.08,
@@ -831,8 +831,8 @@ export const CLASS_CONFLICT_EVENTS = [
       },
       {
         id: 'crack_down',
-        text: '坚决镇压',
-        description: '逮捕激进分子，禁止政治集会，维护旧秩序。',
+        text: '严厉查禁',
+        description: '拿办带头的几个人，禁止聚众议事，维持旧例。',
         effects: {
           stability: -15,
           approval: {
@@ -859,7 +859,7 @@ export const CLASS_CONFLICT_EVENTS = [
       },
       {
         id: 'delay_tactics',
-        text: '"让我们成立一个委员会研究此事..."',
+        text: '"且成立一个小组，慢慢议来……"',
         description: '拖延战术，既不拒绝也不同意，争取时间。',
         effects: {
           stability: -5,
@@ -1879,7 +1879,7 @@ export const CLASS_CONFLICT_EVENTS = [
       {
         id: 'pass_labor_law',
         text: '通过劳动法',
-        description: '立法规定八小时工作制，工人阶级的历史性胜利。',
+        description: '立法规定每天只做八个钟头，做工的人总算有了喘息的余地。',
         effects: {
           resourcePercent: {
             science: -30,
@@ -1988,7 +1988,7 @@ export const CLASS_CONFLICT_EVENTS = [
       },
       {
         id: 'suppress_movement',
-        text: '坚决镇压',
+        text: '严厉查禁',
         description: '保护外国人和少数信仰者，维护国际关系。',
         effects: {
           resourcePercent: {
@@ -3197,7 +3197,7 @@ export const CLASS_CONFLICT_EVENTS = [
     name: '恐怖时期',
     icon: 'Skull',
     image: null,
-    description: '革命委员会声称到处都是"人民的敌人"和"反革命分子"。断头台日夜不停，任何人都可能被邻居告发。一位革命领袖宣称："没有美德的恐怖是有害的，没有恐怖的美德是无力的！"',
+    description: '临时议事会声称到处都是"人民的敌人"和"异己分子"。断头台日夜不停，任何人都可能被邻居告发。一位领头者宣称："没有美德的恐怖是有害的，没有恐怖的美德是无力的！"',
     triggerConditions: {
       minEpoch: 5,
       minStability: 20,
@@ -3215,7 +3215,7 @@ export const CLASS_CONFLICT_EVENTS = [
       {
         id: 'end_terror',
         text: '结束恐怖',
-        description: '公开谴责滥杀无辜，解散革命法庭。',
+        description: '公开谴责滥杀无辜，解散临时公堂。',
         effects: {
           stability: 10,
           approval: {
@@ -3230,7 +3230,7 @@ export const CLASS_CONFLICT_EVENTS = [
       {
         id: 'intensify_terror',
         text: '加剧清洗',
-        description: '"革命尚未成功！"扩大打击范围。',
+        description: '"局面尚未定！"扩大打击范围。',
         effects: {
           populationPercent: -0.012,
           stability: -15,
@@ -3246,7 +3246,7 @@ export const CLASS_CONFLICT_EVENTS = [
       {
         id: 'redirect_terror',
         text: '转移矛头',
-        description: '将恐怖对准革命领袖自身，"革命吞噬自己的孩子"。',
+        description: '将恐怖对准领头者自身，"内斗吞噬自己人"。',
         effects: {
           populationPercent: -0.03,
           stability: 5,

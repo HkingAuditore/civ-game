@@ -211,14 +211,14 @@ export const TUTORIAL_STEPS = [
             {
                 icon: 'Gavel',
                 iconColor: 'text-amber-400',
-                title: '政令选择',
-                text: '在「政令」标签页颁布法令。但要谨慎：每项政令都有代价，过度干预会适得其反。',
+                title: '章程选择',
+                text: '在相关页签里立下章程。但要谨慎：每道章程都有代价，管得太细反而适得其反。',
             },
             {
                 icon: 'AlertTriangle',
                 iconColor: 'text-red-400',
-                title: '计划经济的陷阱',
-                text: '哈耶克警告：中央计划无法掌握分散的知识。让市场自发调节，政府只需维护秩序。',
+                title: '摊子太大的陷阱',
+                text: '一个人算不尽所有账目。让各处自行周转，你只需把规矩定清楚。',
             },
         ],
         callouts: [

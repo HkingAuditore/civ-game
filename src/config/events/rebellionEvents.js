@@ -325,7 +325,7 @@ export function createActiveRebellionEvent(stratumKey, rebellionState, hasMilita
 }
 
 /**
- * 创建官僚政变事件
+ * 创建官僚变乱事件
  */
 export function createOfficialCoupEvent(official, hasMilitary, isMilitaryRebelling, rebelNation, callback) {
     const options = [];
@@ -334,7 +334,7 @@ export function createOfficialCoupEvent(official, hasMilitary, isMilitaryRebelli
         options.push({
             id: 'suppress',
             text: '立即镇压',
-            description: `出动忠诚军队粉碎官僚政变：成功可重创叛军并压低组织度，失败则军队折损、局势更糟`,
+            description: `出动忠诚军队粉碎官僚变乱：成功可重创叛军并压低组织度，失败则军队折损、局势更糟`,
             effects: {
                 stability: -6,
                 approval: { official: -15 },
@@ -346,7 +346,7 @@ export function createOfficialCoupEvent(official, hasMilitary, isMilitaryRebelli
     options.push({
         id: 'accept_war',
         text: '应战',
-        description: `承认叛军为敌对势力，转为通过全面内战解决政变危机`,
+        description: `承认叛军为敌对势力，转为通过全面内战解决变乱危机`,
         effects: {
             stability: -4,
         },
@@ -355,7 +355,7 @@ export function createOfficialCoupEvent(official, hasMilitary, isMilitaryRebelli
 
     return {
         id: `bureaucratic_coup_${official?.id || 'official'}_${Date.now()}`,
-        name: `${official?.name || '官僚集团'}发动政变！`,
+        name: `${official?.name || '官僚集团'}发动变乱！`,
         icon: 'Skull',
         image: null,
         description: `官僚体系发生剧烈动荡！${official?.name || '一名官员'}携带其资产叛逃，宣布成立"${rebelNation.name}"，并带走其控制的产业与人员。\n\n叛军实力：约${rebelNation.population}人\n叛军财富：${rebelNation.wealth}银币`,
@@ -367,7 +367,7 @@ export function createOfficialCoupEvent(official, hasMilitary, isMilitaryRebelli
 }
 
 /**
- * 创建官僚政变政府国家对象
+ * 创建官僚变乱当局国家对象
  */
 export function createOfficialCoupNation(official, assets = {}, rebelPopulation = 0) {
     const rebelId = `bureaucratic_coup_${official?.id || 'official'}_${Date.now()}`;
@@ -378,7 +378,7 @@ export function createOfficialCoupNation(official, assets = {}, rebelPopulation 
 
     return {
         id: rebelId,
-        name: `${official?.name || '官僚'}政变政府`,
+        name: `${official?.name || '官僚'}变乱当局`,
         desc: `由官僚体系分裂而成的叛乱政府`,
         color: '#7a1111',
         icon: 'Flame',

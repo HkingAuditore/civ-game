@@ -1,6 +1,6 @@
 /**
  * 内阁协同度与意识形态主导系统
- * 处理官员派系平衡、效率修正和特殊玩法面板
+ * 处理官员班底平衡、效率修正和特殊玩法面板
  */
 
 import { POLITICAL_STANCES } from '../../config/politicalStances';
@@ -96,8 +96,8 @@ export const getCentristCabinetDecrees = (currentDecrees = []) => {
 // ========== 常量定义 ==========
 
 // 主导触发阈值
-export const DOMINANCE_THRESHOLD = 0.6; // 60% 官员为同一派系
-export const SYNERGY_DOMINANCE_THRESHOLD = 0.5; // 协同度高时的派系阈值
+export const DOMINANCE_THRESHOLD = 0.6; // 60% 官员为同一班底
+export const SYNERGY_DOMINANCE_THRESHOLD = 0.5; // 协同度高时的班底阈值
 
 // 协同度区间效果
 export const SYNERGY_EFFECTS = {
@@ -139,17 +139,17 @@ export const SYNERGY_EFFECTS = {
         stability: 0,
         organizationGrowth: 0,
         ideologicalDrift: true,
-        oppositionPenalty: -10, // 非主导派系满意度惩罚
-        label: '一党独大',
+        oppositionPenalty: -10, // 非主导班底满意度惩罚
+        label: '一家独大',
         color: 'text-purple-400',
     },
 };
 
-// 派系主导效果
+// 班底主导效果
 export const DOMINANCE_EFFECTS = {
     left: {
         id: 'left',
-        name: '左派主导',
+        name: '普惠班底',
         icon: 'Users',
         color: 'text-red-400',
         panelType: 'plannedEconomy',
@@ -157,11 +157,11 @@ export const DOMINANCE_EFFECTS = {
             socialMobility: 0.20,
             lowerClassApproval: 5, // peasant, worker, serf, miner
         },
-        description: '可进行阶层人口配额规划',
+        description: '可统筹各行人手调配',
     },
     center: {
         id: 'center',
-        name: '建制派主导',
+        name: '稳健班底',
         icon: 'Scale',
         color: 'text-blue-400',
         panelType: 'reformDecree',
@@ -169,11 +169,11 @@ export const DOMINANCE_EFFECTS = {
             diplomaticRelations: 0.5,
             stability: 0.03,
         },
-        description: '可颁布临时法令',
+        description: '可临时立下章程',
     },
     right: {
         id: 'right',
-        name: '右派主导',
+        name: '进取班底',
         icon: 'TrendingUp',
         color: 'text-amber-400',
         panelType: 'freeMarket',
@@ -181,7 +181,7 @@ export const DOMINANCE_EFFECTS = {
             tradeBonus: 0.10,
             upperClassApproval: 5, // landowner, merchant, capitalist
         },
-        description: '可允许业主自主扩张建筑',
+        description: '可放手让业户自行扩建',
     },
 };
 
@@ -189,7 +189,7 @@ export const DOMINANCE_EFFECTS = {
 export const REFORM_DECREES = {
     emergencyGrain: {
         id: 'emergencyGrain',
-        name: '紧急征粮',
+        name: '集中采收',
         icon: 'Wheat',
         duration: 30, // 30天
         cooldown: 180, // 180天冷却
@@ -202,7 +202,7 @@ export const REFORM_DECREES = {
     },
     tradeCharter: {
         id: 'tradeCharter',
-        name: '贸易特许',
+        name: '商路专营',
         icon: 'Ship',
         duration: 60,
         cooldown: 240,
@@ -214,7 +214,7 @@ export const REFORM_DECREES = {
     },
     industrialSubsidy: {
         id: 'industrialSubsidy',
-        name: '工业补贴',
+        name: '工坊注资',
         icon: 'Factory',
         duration: 90,
         cooldown: 300,
@@ -227,7 +227,7 @@ export const REFORM_DECREES = {
     },
     migrationIncentive: {
         id: 'migrationIncentive',
-        name: '移民激励',
+        name: '招募人手',
         icon: 'UserPlus',
         duration: 60,
         cooldown: 200,
@@ -239,7 +239,7 @@ export const REFORM_DECREES = {
     },
     militaryMobilization: {
         id: 'militaryMobilization',
-        name: '军事动员',
+        name: '护队集结',
         icon: 'Sword',
         duration: 30,
         cooldown: 150,
@@ -252,7 +252,7 @@ export const REFORM_DECREES = {
     },
     taxHoliday: {
         id: 'taxHoliday',
-        name: '税收减免',
+        name: '减抽让利',
         icon: 'Gift',
         duration: 45,
         cooldown: 200,
@@ -265,7 +265,7 @@ export const REFORM_DECREES = {
     },
     forced_labor: {
         id: 'forced_labor',
-        name: '强制劳动',
+        name: '集中赶工',
         icon: 'Hammer',
         duration: 60,
         cooldown: 300,
@@ -279,7 +279,7 @@ export const REFORM_DECREES = {
     },
     tithe: {
         id: 'tithe',
-        name: '什一税',
+        name: '香火钱',
         icon: 'Cross',
         duration: 90,
         cooldown: 360,
@@ -295,7 +295,7 @@ export const REFORM_DECREES = {
 // ========== 核心计算函数 ==========
 
 /**
- * 获取官员的立场光谱
+ * 获取官员的性情底色
  * @param {Object} official - 官员对象
  * @returns {string} 'left' | 'center' | 'right'
  */
@@ -315,7 +315,7 @@ export const calculateCabinetSynergy = (officials) => {
         return { synergy: 50, distribution: { left: 0, center: 0, right: 0 }, level: 'diverse' };
     }
 
-    // 统计各派系人数
+    // 统计各班底人数
     const distribution = { left: 0, center: 0, right: 0 };
     officials.forEach(o => {
         const spectrum = getOfficialSpectrum(o);
@@ -350,7 +350,7 @@ export const DOMINANCE_MIN_EPOCH = 5; // 启蒙时代
 export const DOMINANCE_MIN_OFFICIAL_RATIO = 0.5; // 官员数量需达到编制的50%
 
 /**
- * 获取主导派系
+ * 获取主导班底
  * @param {Array} officials - 在任官员列表
  * @param {number} capacity - 官员编制容量
  * @param {number} epoch - 当前时代
@@ -393,7 +393,7 @@ export const getCabinetDominance = (officials, capacity = 3, epoch = 0) => {
     const { synergy, distribution } = calculateCabinetSynergy(officials);
     const total = officials.length;
 
-    // 找出最大派系
+    // 找出最大班底
     let dominant = null;
     let maxPercent = 0;
     Object.entries(distribution).forEach(([faction, count]) => {
@@ -443,7 +443,7 @@ export const getSynergyEffects = (synergy) => {
 };
 
 /**
- * 获取内阁综合效果（协同度 + 主导派系）
+ * 获取内阁综合效果（协同度 + 主导班底）
  * @param {Array} officials - 在任官员列表
  * @param {number} capacity - 官员编制容量
  * @param {number} epoch - 当前时代
@@ -470,7 +470,7 @@ export const getCabinetEffects = (officials, capacity = 3, epoch = 0) => {
         oppositionPenalty: synergyEffects.oppositionPenalty || 0,
     };
 
-    // 添加主导派系效果
+    // 添加主导班底效果
     if (dominance) {
         if (dominance.effects.socialMobility) {
             effects.socialMobilityMod = dominance.effects.socialMobility;
@@ -661,9 +661,9 @@ export const processIdeologicalDrift = (cabinetEffects, classInfluence) => {
     const dominance = cabinetEffects.dominance;
     if (!dominance) return result;
 
-    // 左派主导：下层阶层影响力上升
-    // 右派主导：上层阶层影响力上升
-    // 建制派主导：温和变化
+    // 普惠班底主导：下层阶层影响力上升
+    // 进取班底主导：上层阶层影响力上升
+    // 稳健班底主导：温和变化
     const DRIFT_RATE = 0.005; // 每日0.5%
 
     if (dominance.faction === 'left') {
@@ -682,7 +682,7 @@ export const processIdeologicalDrift = (cabinetEffects, classInfluence) => {
         });
     }
 
-    // 非主导派系满意度惩罚
+    // 非主导班底满意度惩罚
     if (cabinetEffects.oppositionPenalty) {
         // 这个惩罚应该在满意度计算时应用，而不是每日累加
         // 这里只标记状态
@@ -691,7 +691,7 @@ export const processIdeologicalDrift = (cabinetEffects, classInfluence) => {
     return result;
 };
 
-// ========== 计划经济：阶层配额 ==========
+// ========== 统筹调配：群体配额 ==========
 
 /**
  * 计算阶层配额调整效果

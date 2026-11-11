@@ -6,8 +6,8 @@ import { normalizeIdeologyDefinitions, reportIdeologyDslIssues } from './ideolog
  */
 export const IDEOLOGY_CATEGORIES = {
     philosophy: { name: '哲学理念', icon: 'Brain', color: 'text-indigo-400', bgClass: 'bg-indigo-900/30' },
-    theology:   { name: '神学理念', icon: 'Church', color: 'text-yellow-400', bgClass: 'bg-yellow-900/30' },
-    politics:   { name: '政治理念', icon: 'Landmark', color: 'text-red-400', bgClass: 'bg-red-900/30' },
+    theology:   { name: '信仰理念', icon: 'Church', color: 'text-yellow-400', bgClass: 'bg-yellow-900/30' },
+    politics:   { name: '思想理念', icon: 'Landmark', color: 'text-red-400', bgClass: 'bg-red-900/30' },
     economy:    { name: '经济理念', icon: 'Coins', color: 'text-green-400', bgClass: 'bg-green-900/30' },
     military:   { name: '军事理念', icon: 'Sword', color: 'text-orange-400', bgClass: 'bg-orange-900/30' },
     aesthetics: { name: '美学理念', icon: 'Palette', color: 'text-pink-400', bgClass: 'bg-pink-900/30' },
@@ -266,7 +266,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'messianic_faith',
-        name: '弥赛亚信仰',
+        name: '救世期盼',
         category: 'theology',
         icon: 'Sun',
         color: 'text-yellow-500',
@@ -492,7 +492,7 @@ export const IDEOLOGIES = [
     // ============ 政治理念 (politics) ============
     {
         id: 'divine_right',
-        name: '君权神授',
+        name: '名正言顺',
         category: 'politics',
         icon: 'Crown',
         color: 'text-red-400',
@@ -578,7 +578,7 @@ export const IDEOLOGIES = [
         },
     },    {
         id: 'republicanism',
-        name: '共和主义',
+        name: '共同商议',
         category: 'politics',
         icon: 'Scale',
         color: 'text-red-300',
@@ -644,7 +644,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'nationalism',
-        name: '民族主义',
+        name: '乡土情结',
         category: 'politics',
         icon: 'Flag',
         color: 'text-red-500',
@@ -707,7 +707,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'social_contract_ideology',
-        name: '社会契约',
+        name: '契约精神',
         category: 'politics',
         icon: 'FileText',
         color: 'text-red-200',
@@ -961,7 +961,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'state_capitalism',
-        name: '国家资本主义',
+        name: '公家出资',
         category: 'economy',
         icon: 'Building',
         color: 'text-green-600',
@@ -1018,7 +1018,7 @@ export const IDEOLOGIES = [
     // ============ 军事理念 (military) ============
     {
         id: 'militarism',
-        name: '军国主义',
+        name: '崇尚武力',
         category: 'military',
         icon: 'Sword',
         color: 'text-orange-400',
@@ -1171,7 +1171,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'levee_en_masse',
-        name: '全民皆兵',
+        name: '全村皆兵',
         category: 'military',
         icon: 'Shield',
         color: 'text-orange-500',
@@ -1558,7 +1558,7 @@ export const IDEOLOGIES = [
     // ============ 社会理念 (social) ============
     {
         id: 'caste_system',
-        name: '种姓制度',
+        name: '门第等级',
         category: 'social',
         icon: 'Layers',
         color: 'text-purple-400',
@@ -1692,7 +1692,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'civic_society',
-        name: '公民社会',
+        name: '乡规民约',
         category: 'social',
         icon: 'Users',
         color: 'text-purple-200',
@@ -1826,7 +1826,7 @@ export const IDEOLOGIES = [
                         { type: 'official_capacity', scope: '_global', value: 3 },
                     ],
                     triggerEffects: [
-                        // 儒家官员派系：每8名官员提供文化加成（礼乐教化的核心）
+                        // 儒家官员班底：每8名官员提供文化加成（礼乐教化的核心）
                         { type: 'official_faction_bonus', faction: '儒官', per: 8, bonus: { cultureBonus: 0.010, stability: 0.5 }, cap: 0.25 },
                     ],
                 },
@@ -1897,7 +1897,7 @@ export const IDEOLOGIES = [
             ],
             triggerEffects: [
                 { type: 'building_count_bonus', category: 'industry', per: 5, bonus: { stability: 1.5 } },
-                // 法家官员派系：每10名官员提供产出加成（严格管理带来效率）
+                // 法家官员班底：每10名官员提供产出加成（严格管理带来效率）
                 { type: 'official_faction_bonus', faction: '法吏', per: 10, bonus: { production: 0.015, stability: 0.5 }, cap: 0.30 },
             ],
         },
@@ -1947,7 +1947,7 @@ export const IDEOLOGIES = [
     // ============ 扩充理念：政治 (politics) ============
     {
         id: 'feudalism_ideology',
-        name: '封建主义',
+        name: '层层分封',
         category: 'politics',
         icon: 'Castle',
         color: 'text-red-300',
@@ -1973,7 +1973,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'anarchism',
-        name: '无政府主义',
+        name: '不受约束',
         category: 'politics',
         icon: 'CircleOff',
         color: 'text-red-600',
@@ -2010,7 +2010,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'imperialism',
-        name: '帝国主义',
+        name: '向外扩张',
         category: 'politics',
         icon: 'Globe',
         color: 'text-red-500',
@@ -2061,7 +2061,7 @@ export const IDEOLOGIES = [
     // ============ 扩充理念：经济 (economy) ============
     {
         id: 'communism',
-        name: '共产主义',
+        name: '人人共享',
         category: 'economy',
         icon: 'Factory',
         color: 'text-green-600',
@@ -2095,7 +2095,7 @@ export const IDEOLOGIES = [
                         { source: 'industry', sourceType: 'buildingCount', ratio: 0.005, target: 'production', cap: 0.50 },
                         // 工人人口 → 产出
                         { source: 'worker', sourceType: 'population', ratio: 0.000002, target: 'production', cap: 0.30 },
-                        // 失业人口 → 产出（共产主义将失业转化为生产力）
+                        // 失业人口 → 产出（共财之制将闲散人力转化为生产力）
                         { source: 'unemployment', sourceType: 'unemployment', ratio: 0.00015, target: 'production', cap: 0.20 },
                     ],
                     triggerEffects: [
@@ -2178,7 +2178,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'welfare_state',
-        name: '福利国家',
+        name: '互助救济',
         category: 'economy',
         icon: 'HeartHandshake',
         color: 'text-green-400',
@@ -2235,7 +2235,7 @@ export const IDEOLOGIES = [
     // ============ 扩充理念：军事 (military) ============
     {
         id: 'guerrilla_warfare',
-        name: '游击战术',
+        name: '游击打法',
         category: 'military',
         icon: 'TreePine',
         color: 'text-orange-400',
@@ -2320,7 +2320,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'total_war',
-        name: '总体战',
+        name: '全力以赴',
         category: 'military',
         icon: 'Flame',
         color: 'text-orange-600',
@@ -2621,7 +2621,7 @@ export const IDEOLOGIES = [
     // ============ 扩充理念：社会 (social) ============
     {
         id: 'collectivism',
-        name: '集体主义',
+        name: '同心协力',
         category: 'social',
         icon: 'Users',
         color: 'text-purple-400',
@@ -2680,7 +2680,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'meritocracy',
-        name: '贤能主义',
+        name: '选贤任能',
         category: 'social',
         icon: 'Award',
         color: 'text-purple-500',
@@ -2728,7 +2728,7 @@ export const IDEOLOGIES = [
                         { type: 'conditional_flip', condition: 'stability_below', threshold: 35,
                             normalBonus: { scienceBonus: 0.02 },
                             flippedBonus: { stability: -4, scienceBonus: -0.03 } },
-                        // 贤能官员派系：每8名官员提供科研加成（人才选拔带来知识积累）
+                        // 贤能官员班底：每8名官员提供科研加成（人才选拔带来知识积累）
                         { type: 'official_faction_bonus', faction: '贤士', per: 8, bonus: { scienceBonus: 0.012, stability: 0.4 }, cap: 0.25 },
                     ],
                 },
@@ -2737,7 +2737,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'labor_movement',
-        name: '工人运动',
+        name: '工匠结社',
         category: 'social',
         icon: 'Pickaxe',
         color: 'text-purple-600',
@@ -2768,7 +2768,7 @@ export const IDEOLOGIES = [
     // 传奇理念极为稀有，效果强大但代价显著，包含丰富的条件触发和资源消耗机制
     {
         id: 'mandate_of_heaven',
-        name: '天命',
+        name: '天时',
         category: 'politics',
         icon: 'Sun',
         color: 'text-amber-400',
@@ -3227,7 +3227,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'social_darwinism',
-        name: '社会达尔文主义',
+        name: '优胜劣汰',
         category: 'philosophy',
         icon: 'Brain',
         color: 'text-indigo-400',
@@ -3377,7 +3377,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'eschatology',
-        name: '末世论',
+        name: '末世想象',
         category: 'theology',
         icon: 'Church',
         color: 'text-yellow-400',
@@ -3446,7 +3446,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'jihad_doctrine',
-        name: '圣战思想',
+        name: '立誓而战',
         category: 'theology',
         icon: 'Church',
         color: 'text-yellow-400',
@@ -3518,7 +3518,7 @@ export const IDEOLOGIES = [
     // ============ V2: 政治理念 (politics) ============
     {
         id: 'federalism',
-        name: '联邦制',
+        name: '各管一摊',
         category: 'politics',
         icon: 'Landmark',
         color: 'text-red-400',
@@ -3555,7 +3555,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'totalitarianism',
-        name: '极权主义',
+        name: '铁腕专断',
         category: 'politics',
         icon: 'Landmark',
         color: 'text-red-400',
@@ -3635,7 +3635,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'vanguardism',
-        name: '革命先锋',
+        name: '敢为人先',
         category: 'politics',
         icon: 'Landmark',
         color: 'text-red-400',
@@ -3678,7 +3678,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'tributary_system',
-        name: '朝贡体系',
+        name: '藩属往来',
         category: 'politics',
         icon: 'Landmark',
         color: 'text-red-400',
@@ -3739,7 +3739,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'populism',
-        name: '民粹主义',
+        name: '随大流',
         category: 'politics',
         icon: 'Landmark',
         color: 'text-red-400',
@@ -3816,7 +3816,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'planned_economy',
-        name: '计划经济',
+        name: '统一调配',
         category: 'economy',
         icon: 'Coins',
         color: 'text-green-400',
@@ -3928,7 +3928,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'finance_capitalism',
-        name: '金融资本主义',
+        name: '银号兴起',
         category: 'economy',
         icon: 'Coins',
         color: 'text-green-400',
@@ -3957,7 +3957,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'cooperative_movement',
-        name: '合作社运动',
+        name: '合会互助',
         category: 'economy',
         icon: 'Coins',
         color: 'text-green-400',
@@ -4132,7 +4132,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'peoples_war',
-        name: '人民战争',
+        name: '全民上阵',
         category: 'military',
         icon: 'Sword',
         color: 'text-orange-400',
@@ -4209,7 +4209,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'military_industrial_complex',
-        name: '军事工业复合体',
+        name: '兵工一体',
         category: 'military',
         icon: 'Sword',
         color: 'text-orange-400',
@@ -4612,7 +4612,7 @@ export const IDEOLOGIES = [
     // ============ V2: 社会理念 (social) ============
     {
         id: 'apartheid',
-        name: '种族隔离',
+        name: '划界而居',
         category: 'social',
         icon: 'Users',
         color: 'text-purple-400',
@@ -4782,7 +4782,7 @@ export const IDEOLOGIES = [
     // ============ V2: 补充理念 ============
     {
         id: 'serfdom',
-        name: '契约农奴制',
+        name: '佃户契约',
         category: 'economy',
         icon: 'Coins',
         color: 'text-green-400',
@@ -4815,7 +4815,7 @@ export const IDEOLOGIES = [
     },
     {
         id: 'thalassocracy',
-        name: '海洋霸权',
+        name: '扬帆海上',
         category: 'military',
         icon: 'Sword',
         color: 'text-orange-400',

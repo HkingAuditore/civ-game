@@ -19,7 +19,7 @@ export const DEMAND_TYPE = {
     TAX_RELIEF: 'tax_relief',       // 减税诉求
     SUBSIDY: 'subsidy',             // 补贴诉求
     RESOURCE: 'resource',           // 物资诉求
-    POLITICAL: 'political',         // 施政诉求
+    POLITICAL: 'political',         // 群体诉求
 };
 
 // 被动诉求类型，用于展示叛乱驱动力
@@ -79,7 +79,7 @@ export const DEMAND_CONFIG = {
         duration: 30,
     },
     [DEMAND_TYPE.POLITICAL]: {
-        name: '施政诉求',
+        name: '群体诉求',
         icon: 'Flag',
         color: 'text-purple-400',
         bgColor: 'bg-purple-900/20',
@@ -428,7 +428,7 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
         });
     }
 
-    // 高影响力但低满意度（施政诉求）
+    // 高影响力但低满意度（群体诉求）
     // 调试：打印关键参数
     debugLog('demands', `[Demands] ${stratumKey}: influenceShare=${influenceShare.toFixed(3)}, approval=${approval}, totalInfluence=${totalInfluence}, influence=${influence}`);
     if (influenceShare > 0.1 && approval < 40) {
@@ -436,7 +436,7 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
         sources.push({
             type: 'political',
             icon: 'Flag',
-            label: '施政诉求',
+            label: '群体诉求',
             detail: `影响力 ${Math.round(influenceShare * 100)}%，满意度仅 ${Math.round(approval)}`,
             contribution,
             severity: 'warning',
@@ -770,7 +770,7 @@ export function generateDemands(stratumKey, context) {
         });
     }
 
-    // 高影响力低满意度 -> 施政诉求
+    // 高影响力低满意度 -> 群体诉求
     const influence = context.classInfluence?.[stratumKey] || 0;
     const totalInfluence = context.totalInfluence || 1;
     const influenceShare = influence / totalInfluence;
@@ -842,7 +842,7 @@ export function checkDemandFulfillment(demand, context) {
         }
 
         case DEMAND_TYPE.POLITICAL: {
-            // 施政诉求需要特定政令或满意度达标
+            // 群体诉求需要特定章程或满意度达标
             const approval = context.classApproval?.[stratumKey] ?? 0;
             return {
                 fulfilled: approval >= 55,

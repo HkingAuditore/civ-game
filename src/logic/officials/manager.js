@@ -182,7 +182,7 @@ const TECH_OFFICIAL_BONUS = {
 /**
  * 计算有效官员容量
  * @param {number} epoch - 当前时代
- * @param {Object} polityEffects - 当前体制效果
+ * @param {Object} polityEffects - 当前格局效果
  * @param {Array} techsUnlocked - 已解锁科技列表
  * @param {number} ideologyBonus - 理念加成（来自装备的理念规则）
  * @returns {number} 有效官员容量
@@ -564,7 +564,7 @@ export const getOfficialInfluencePoints = (officials, isPaid = true, context = {
         const stratum = official.sourceStratum;
         const absoluteInfluence = calculateOfficialAbsoluteInfluence(official, context);
 
-        // 轻微"派系份额"修正：大派系官僚体系更容易把官员力量制度化
+        // 轻微"班底份额"修正：大班底官僚体系更容易把官员力量制度化
         const baseStratumInfluence = Math.max(0, classInfluence[stratum] || 0);
         const factionShare = totalInfluence > 0 ? (baseStratumInfluence / totalInfluence) : 0;
         const factionMultiplier = 1 + Math.min(0.35, factionShare * 0.7); // 上限+35%
@@ -634,10 +634,10 @@ export const getOfficialInfluenceBonus = (officials, isPaid = true, context = {}
     return bonuses;
 };
 
-// ========== 施政立场效果聚合 ==========
+// ========== 做事主张效果聚合 ==========
 
 /**
- * 聚合所有官员的施政立场效果
+ * 聚合所有官员的做事主张效果
  * @param {Array} officials - 在任官员列表
  * @param {Object} gameState - 当前游戏状态（用于检查条件）
  * @returns {Object} { aggregatedEffects, satisfiedCount, unsatisfiedCount }
@@ -718,7 +718,7 @@ export const getAggregatedStanceEffects = (officials, gameState) => {
     officials.forEach(official => {
         if (!official) return;
 
-        // 检查该官员的施政立场条件是否满足
+        // 检查该官员的做事主张条件是否满足
         // [FIX] 与官员卡片/详情页统一口径：优先采用模拟端每帧缓存的生效值
         // （official.isStanceSatisfied），缺失时再用传入的 gameState 实时计算。
         // 避免汇总面板"满足X/未满足Y"统计与卡片显示不一致。
@@ -960,7 +960,7 @@ export const disposeOfficial = (officialId, disposalType, currentOfficials, curr
 
     const propertyTransferTotal = propertyTransfers.reduce((sum, item) => sum + (item.value || 0), 0);
 
-    // ========== 处置时政变判定 ==========
+    // ========== 处置时变乱判定 ==========
     const disposalPenalty = LOYALTY_CONFIG.DISPOSAL_PENALTY[disposalType];
     let coupTriggered = false;
     let finalLoyalty = official.loyalty ?? 75; // 默认兼容旧存档
@@ -969,17 +969,17 @@ export const disposeOfficial = (officialId, disposalType, currentOfficials, curr
         // 应用忠诚度惩罚
         finalLoyalty = Math.max(0, finalLoyalty + disposalPenalty.loyalty);
 
-        // 计算政变概率
+        // 计算变乱概率
         let coupChance = disposalPenalty.coupChance;
 
         // 忠诚度≤0时概率翻倍
         if (finalLoyalty <= 0) coupChance *= 2;
 
-        // 检查是否有资本发动政变
+        // 检查是否有资本发动变乱
         const propertyValue = propertyCount * 100;
         const wealthScore = (official.wealth || 0) + propertyValue;
 
-        // 必须有一定资本才能发动政变
+        // 必须有一定资本才能发动变乱
         const hasCapital = wealthScore >= LOYALTY_CONFIG.COUP_WEALTH_THRESHOLD * 0.5 ||
             propertyCount >= LOYALTY_CONFIG.COUP_PROPERTY_THRESHOLD - 1;
 
@@ -1005,7 +1005,7 @@ export const disposeOfficial = (officialId, disposalType, currentOfficials, curr
             totalValue: propertyTransferTotal,
         } : null,
         consequences,
-        // 政变相关
+        // 变乱相关
         coupTriggered,
         coupData: coupTriggered ? {
             official,
@@ -1054,7 +1054,7 @@ export const switchPropertyPolicy = (fromPolicy, toPolicy, official, currentDay,
     // 计算忠诚度变化（仅影响当事官员）
     let loyaltyChange = transitionConfig.loyaltyPenalty || 0;
 
-    // 左/右派额外惩罚
+    // 普惠/进取额外惩罚
     const stanceInfo = POLITICAL_STANCES[official.politicalStance];
     if (stanceInfo) {
         if (stanceInfo.spectrum === 'right' && transitionConfig.rightLoyaltyExtra) {
@@ -1102,11 +1102,11 @@ export const switchPropertyPolicy = (fromPolicy, toPolicy, official, currentDay,
     if (fromPolicy === 'state_managed') {
         // [BUG FIX] 代管建筑是"国有"资产，与该官员的个人产权无关。
         //   - 旧实现：代管→私产 时把 _managedSummary 整个并入 _propertySummary，
-        //     把国有建筑直接"洗白"成官员私产；该官员之后一旦政变，就会把这些
+        //     把国有建筑直接"洗白"成官员私产；该官员之后一旦变乱，就会把这些
         //     "假私产"（实为国有）一并带走 → 表现为"官员谋反后几乎所有建筑都没了"。
         //   - 正确语义：切换出代经营后，官员只解除"代管职责"，国有建筑实体保留，
         //     归属归类自然回退为"阶层业主"（参见 ownerTypes.buildOwnershipListFromLegacy
-        //     的剩余兜底逻辑）。政变只会带走真正的私产，不会触及曾经代管的建筑。
+        //     的剩余兜底逻辑）。变乱只会带走真正的私产，不会触及曾经代管的建筑。
         const managedReleaseCount = newManagedSummary.totalCount || 0;
         if (managedReleaseCount > 0) {
             logMessages.push(
@@ -1144,7 +1144,7 @@ export const switchPropertyPolicy = (fromPolicy, toPolicy, official, currentDay,
 // ========== 内阁协同度 API ==========
 
 /**
- * 获取内阁综合状态（协同度 + 主导派系 + 效果）
+ * 获取内阁综合状态（协同度 + 主导班底 + 效果）
  * @param {Array} officials - 在任官员列表
  * @param {Object} activeDecrees - 当前生效的临时法令
  * @param {number} capacity - 官员编制容量
@@ -1262,13 +1262,13 @@ const flattenEffectObject = (obj) => {
 };
 
 /**
- * 统一聚合所有在任官员的加成（基础效果 + 施政立场效果 + 部长任命加成），
+ * 统一聚合所有在任官员的加成（基础效果 + 做事主张效果 + 部长任命加成），
  * 按 type|target 累加净值，再按类别分组，供「全部加成汇总」面板使用。
  *
  * @param {Object} params
  * @param {Array}  params.officials           在任官员列表
  * @param {boolean} params.officialsPaid       是否全额支付薪水（否则基础效果减半）
- * @param {Object} params.stanceContext        立场条件判定所需的游戏状态
+ * @param {Object} params.stanceContext        主张条件判定所需的游戏状态
  * @param {Object} params.ministerAssignments  { role: officialId }
  * @returns {{
  *   groups: Array<{category:string, items:Array<{type,target,value}>}>,
@@ -1287,7 +1287,7 @@ export const aggregateAllOfficialBonuses = ({
     // 1. 基础效果（含 drawbacks、腐败、财务惩罚、未付薪减半）
     const baseEffects = getAggregatedOfficialEffects(safeOfficials, officialsPaid);
 
-    // 2. 施政立场效果（满足/未满足）
+    // 2. 做事主张效果（满足/未满足）
     const stanceResult = getAggregatedStanceEffects(safeOfficials, stanceContext || {});
     const stanceEffects = stanceResult?.aggregatedEffects || {};
 

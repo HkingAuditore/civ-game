@@ -533,7 +533,7 @@ export function describeTriggerEffect(te) {
         }
         case 'official_faction_bonus': {
             const bonusDetail = describeBonusDetail(te.bonus);
-            const fName = te.faction || '派系';
+            const fName = te.faction || '班底';
             return `每${te.per || 1}个${fName}官员: ${bonusDetail || '额外加成'}`;
         }
         case 'resource_drain': {

@@ -1,5 +1,5 @@
 // Coalition Events - 联盟相关事件
-// 处理在野阶层要求加入联盟等施政诉求
+// 处理在野阶层要求加入联盟等诉求
 
 import { STRATA } from '../strata.js';
 
@@ -82,7 +82,7 @@ export function createCoalitionDemandEvent(stratumKey, gameState) {
 
     return {
         id: `coalition_demand_${stratumKey}_${Date.now()}`,
-        name: `${stratumName}的施政诉求`,
+        name: `${stratumName}的诉求`,
         icon: 'Users',
         image: null,
         description: `${stratumName}阶层的政治影响力已达到 ${influenceShare}%，他们对自己被排斥在联盟之外感到不满。代表们聚集在宫殿门前，要求获得政治参与权。"我们为这个国家贡献了如此之多，"他们的领袖在请愿书中写道，"却在重大决策中毫无发言权。这种状况必须改变。"`,

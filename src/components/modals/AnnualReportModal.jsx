@@ -254,7 +254,7 @@ export const AnnualReportModal = ({
                             <div className="flex items-center justify-center gap-2 mb-1">
                                 <Icon name="ScrollText" size={18} className="text-ancient-gold" />
                                 <h2 className="text-lg font-bold text-ancient-gold tracking-wide">
-                                    第 {year} 年 · 年度施政报告
+                                    第 {year} 年 · 年度经营报告
                                 </h2>
                             </div>
                             <p className="text-xs text-ancient-stone flex items-center justify-center gap-1">
@@ -336,7 +336,7 @@ export const AnnualReportModal = ({
                                     onClick={() => setShowAllPop(!showAllPop)}
                                     className="text-xs text-blue-400 hover:text-blue-300 transition-colors mt-1 flex items-center gap-0.5"
                                 >
-                                    {showAllPop ? '收起' : `展开全部 ${popEntries.length} 个阶层`}
+                                    {showAllPop ? '收起' : `展开全部 ${popEntries.length} 个群体`}
                                     <Icon name={showAllPop ? 'ChevronUp' : 'ChevronDown'} size={10} />
                                 </button>
                             )}

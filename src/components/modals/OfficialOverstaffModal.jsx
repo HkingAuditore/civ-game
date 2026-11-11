@@ -3,11 +3,12 @@ import { Icon } from '../common/UIComponents';
 import { RESOURCES, BUILDINGS } from '../../config';
 import { STRATA } from '../../config/strata';
 import { POLITICAL_STANCES } from '../../config/politicalStances';
+import { COMPLIANCE_FLAGS } from '../../config/complianceFlags';
 
 const STANCE_SPECTRUM_LABELS = {
-    left: '左派',
-    center: '建制派',
-    right: '右派',
+    left: '普惠',
+    center: '稳健',
+    right: '进取',
 };
 
 const STANCE_SPECTRUM_STYLES = {
@@ -47,7 +48,7 @@ const EFFECT_LABELS = {
     organizationDecay: '组织度增速',
     productionInputCost: '原料消耗',
     corruption: '腐败',
-    factionConflict: '派系冲突',
+    factionConflict: '班底冲突',
     resourceWaste: '资源浪费',
     diplomaticIncident: '外交关系衰减',
 };
@@ -208,7 +209,7 @@ const OfficialOverstaffModal = ({
                         const stratumInfo = STRATA[official.sourceStratum];
                         const stanceInfo = official.politicalStance ? POLITICAL_STANCES[official.politicalStance] : null;
                         const spectrum = stanceInfo?.spectrum || 'center';
-                        const spectrumLabel = STANCE_SPECTRUM_LABELS[spectrum] || '建制派';
+                        const spectrumLabel = STANCE_SPECTRUM_LABELS[spectrum] || '稳健';
                         const spectrumStyle = STANCE_SPECTRUM_STYLES[spectrum] || STANCE_SPECTRUM_STYLES.center;
                         const effectEntries = flattenEffects(official.effects);
                         const shownEffects = effectEntries.slice(0, 3);
@@ -242,12 +243,16 @@ const OfficialOverstaffModal = ({
                                             {stratumInfo?.name || official.sourceStratum} · 俸禄 {official.salary}/日
                                         </p>
                                         <div className="mt-2 flex flex-wrap gap-2">
-                                            <span className={`px-2 py-0.5 text-xs border rounded-full ${spectrumStyle}`}>
-                                                {spectrumLabel}
-                                            </span>
-                                            <span className="px-2 py-0.5 text-xs border rounded-full border-gray-700 text-gray-300">
-                                                {stanceInfo?.name || '未知立场'}
-                                            </span>
+                                            {!COMPLIANCE_FLAGS.hideOfficialStance && (
+                                                <>
+                                                    <span className={`px-2 py-0.5 text-xs border rounded-full ${spectrumStyle}`}>
+                                                        {spectrumLabel}
+                                                    </span>
+                                                    <span className="px-2 py-0.5 text-xs border rounded-full border-gray-700 text-gray-300">
+                                                        {stanceInfo?.name || '未详'}
+                                                    </span>
+                                                </>
+                                            )}
                                             {shownEffects.length > 0 ? (
                                                 shownEffects.map(effect => (
                                                     <span

@@ -1,7 +1,7 @@
 /**
- * 联盟面板组件
+ * 班底面板组件
  * 允许玩家选择与哪些阶层联合
- * 更换联盟需要花费银币（20%或最低5000）
+ * 更换班底需要花费银币（20%或最低5000）
  */
 
 import React, { useState, useMemo, useCallback } from 'react';
@@ -22,23 +22,23 @@ import {
 import { getPolityEffects, formatPolityEffects } from '../../config/polityEffects';
 import { formatNumberShortCN } from '../../utils/numberFormat';
 
-// 阶层分组，用于UI显示
+// 群体分组，用于UI显示
 const STRATA_GROUPS = {
     upper: {
-        name: '上流阶级',
+        name: '上层',
         keys: ['merchant', 'official', 'landowner', 'capitalist', 'engineer', 'scientist'],
     },
     middle: {
-        name: '中产阶级',
+        name: '中层',
         keys: ['artisan', 'soldier', 'cleric', 'scribe', 'navigator', 'technician'],
     },
     lower: {
-        name: '下层阶级',
+        name: '下层',
         keys: ['peasant', 'serf', 'lumberjack', 'worker', 'miner', 'unemployed'],
     },
 };
 
-// 计算更换联盟的费用
+// 计算更换班底的费用
 const COALITION_CHANGE_MIN_COST = 5000;
 const COALITION_CHANGE_PERCENT = 0.20;
 
@@ -48,7 +48,7 @@ const calculateCoalitionChangeCost = (currentSilver) => {
 };
 
 /**
- * 联盟面板
+ * 班底面板
  */
 export const CoalitionPanel = React.memo(({
     rulingCoalition = [],
@@ -231,7 +231,7 @@ export const CoalitionPanel = React.memo(({
             <div className="flex items-center justify-between mb-2">
                 <h3 className="text-xs font-bold flex items-center gap-1.5 text-gray-300 font-decorative">
                     <Icon name="Users" size={16} className="text-amber-400" />
-                    联盟
+                    班底
                     {isEditMode && (
                         <span className="text-xs text-amber-400 font-normal ml-2 px-2 py-0.5 bg-amber-900/30 rounded">
                             编辑中
@@ -252,7 +252,7 @@ export const CoalitionPanel = React.memo(({
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div className="text-xs text-gray-400">
                             <Icon name="Info" size={12} className="inline mr-1" />
-                            改组联盟需要花费银币
+                            更换班底需要花费银币
                         </div>
                         <button
                             onClick={enterEditMode}
@@ -266,7 +266,7 @@ export const CoalitionPanel = React.memo(({
                             `}
                         >
                             <Icon name="Edit" size={12} />
-                            改组联盟
+                            更换班底
                             <span className={`ml-1 ${canAffordChange ? 'text-amber-200' : 'text-gray-400'}`}>
                                 ({formatNumberShortCN(changeCost, { decimals: 1 })} 银币)
                             </span>
@@ -283,7 +283,7 @@ export const CoalitionPanel = React.memo(({
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div className="text-xs text-amber-300">
                             <Icon name="AlertCircle" size={12} className="inline mr-1" />
-                            选择联盟成员，确认后花费 <span className="font-bold">{formatNumberShortCN(changeCost, { decimals: 1 })}</span> 银币
+                            选择班底成员，确认后花费 <span className="font-bold">{formatNumberShortCN(changeCost, { decimals: 1 })}</span> 银币
                         </div>
                         <div className="flex gap-2 flex-shrink-0">
                             <button
@@ -310,7 +310,7 @@ export const CoalitionPanel = React.memo(({
                     </div>
                     {!hasChanges && (
                         <div className="mt-1 text-xs text-gray-400">
-                            点击下方阶层卡片来添加或移除联盟成员
+                            点击下方阶层卡片来添加或移除班底成员
                         </div>
                     )}
                 </div>
@@ -360,7 +360,7 @@ export const CoalitionPanel = React.memo(({
             {/* 权威说明 */}
             <div className="mb-2 p-2 bg-gray-900/30 rounded-lg">
                 <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-xs text-gray-400">联盟影响力</span>
+                    <span className="text-xs text-gray-400">班底影响力</span>
                     <span className={`text-sm font-bold ${coalitionInfluenceShare >= LEGITIMACY_THRESHOLD ? 'text-green-400' : 'text-red-400'}`}>
                         {(coalitionInfluenceShare * 100).toFixed(1)}%
                         {isEditMode && hasChanges && <span className="ml-1 text-amber-400 text-xs font-normal">(预览)</span>}
@@ -392,7 +392,7 @@ export const CoalitionPanel = React.memo(({
                             <div className="text-xs text-gray-500 mb-1">数据</div>
                             <div className="flex items-center py-0.5">
                                 <span className="text-xs text-gray-400 flex items-center gap-1 flex-shrink-0">
-                                    <Icon name="Heart" size={10} className="text-pink-400" />联盟满意度
+                                    <Icon name="Heart" size={10} className="text-pink-400" />班底满意度
                                 </span>
                                 <span className="flex-1 mx-2 border-b border-dotted border-gray-600/50"></span>
                                 <span className={`text-xs font-bold ${avgCoalitionApproval >= 50 ? 'text-green-400' : 'text-red-400'}`}>
@@ -425,7 +425,7 @@ export const CoalitionPanel = React.memo(({
                         </div>
                         <div className="flex items-center py-0.5">
                             <span className="text-xs text-gray-400 flex items-center gap-1 flex-shrink-0">
-                                <Icon name="Users" size={10} className="text-orange-400" />非联盟阶层组织扩张倍率
+                                <Icon name="Users" size={10} className="text-orange-400" />班底外群体组织扩张倍率
                             </span>
                             <span className="flex-1 mx-2 border-b border-dotted border-gray-600/50"></span>
                             <span className={`text-xs font-bold ${orgModifier <= 1 ? 'text-green-400' : 'text-red-400'}`}>
@@ -458,7 +458,7 @@ export const CoalitionPanel = React.memo(({
                     <div className="flex items-start gap-2">
                         <Icon name="AlertTriangle" size={14} className="text-amber-400 mt-0.5 flex-shrink-0" />
                         <details className="text-xs text-amber-300/80">
-                            <summary className="font-semibold cursor-pointer">联盟代价 ⚠️</summary>
+                            <summary className="font-semibold cursor-pointer">班底代价 ⚠️</summary>
                             <ul className="list-disc list-inside space-y-0.5 text-amber-300/70 mt-1">
                                 <li>叛乱增速 <span className="text-red-400">+50%</span></li>
                                 <li>叛乱门槛 <span className="text-red-400">降低</span></li>

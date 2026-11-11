@@ -1,37 +1,37 @@
 /**
- * 施政立场配置
- * 定义官员的施政倾向、议题和效果触发条件
- * 注意：条件数值在分配立场时动态生成
+ * 做事主张配置
+ * 定义官员的做事倾向、议题和效果触发条件
+ * 注意：条件数值在分配主张时动态生成
  */
 
 import { STRATA } from './strata.js';
 
-// ========== 施政议题定义 ==========
+// ========== 「在意的事」标签定义（只做界面标签，不参与数值） ==========
 export const POLITICAL_ISSUES = {
-    equality: { name: '平等', icon: 'Equal', description: '关注贫富差距和社会公正' },
-    collectivism: { name: '集体主义', icon: 'Users', description: '集体利益优先' },
-    tradition: { name: '传统', icon: 'Landmark', description: '维护既有秩序' },
-    hierarchy: { name: '等级制度', icon: 'Layers', description: '社会分层有序' },
-    spiritual: { name: '灵性/宗教', icon: 'Star', description: '精神信仰' },
-    military: { name: '军事', icon: 'Sword', description: '军事力量和国防' },
-    expansion: { name: '扩张', icon: 'Expand', description: '领土和影响力扩展' },
-    liberty: { name: '自由', icon: 'Bird', description: '个人自由权利' },
-    law: { name: '法治', icon: 'Scale', description: '法律秩序' },
-    reform: { name: '改革', icon: 'RefreshCw', description: '社会变革' },
-    revolution: { name: '革命', icon: 'Flame', description: '激进变革' },
-    land: { name: '土地', icon: 'Map', description: '土地分配' },
-    trade: { name: '贸易', icon: 'Handshake', description: '商业活动' },
-    wealth: { name: '财富', icon: 'Coins', description: '经济繁荣' },
-    centralization: { name: '集权', icon: 'Target', description: '权力集中' },
-    free_market: { name: '自由市场', icon: 'Store', description: '市场经济' },
-    education: { name: '教育', icon: 'GraduationCap', description: '知识传播' },
-    welfare: { name: '福利', icon: 'Heart', description: '社会保障' },
-    privatization: { name: '私有化', icon: 'Building', description: '私有产权' },
-    efficiency: { name: '效率', icon: 'Zap', description: '行政效能' },
-    progress: { name: '进步', icon: 'TrendingUp', description: '科技发展' },
-    nature: { name: '自然', icon: 'Leaf', description: '环境生态' },
-    nation: { name: '民族', icon: 'Flag', description: '民族认同' },
-    stability: { name: '稳定', icon: 'Anchor', description: '社会安定' },
+    equality: { name: '公平', icon: 'Equal', description: '在意分得公不公平' },
+    collectivism: { name: '互助', icon: 'Users', description: '先顾大家' },
+    tradition: { name: '传统', icon: 'Landmark', description: '照老法子来' },
+    hierarchy: { name: '次序', icon: 'Layers', description: '上下各安其位' },
+    spiritual: { name: '信念', icon: 'Star', description: '心里有敬重的东西' },
+    military: { name: '军事', icon: 'Sword', description: '人马与防务' },
+    expansion: { name: '拓展', icon: 'Expand', description: '往远处扩地盘' },
+    liberty: { name: '自由', icon: 'Bird', description: '各家自己做主' },
+    law: { name: '法治', icon: 'Scale', description: '按规矩办事' },
+    reform: { name: '改革', icon: 'RefreshCw', description: '想改改旧做法' },
+    revolution: { name: '剧变', icon: 'Flame', description: '要动大手术' },
+    land: { name: '土地', icon: 'Map', description: '田地怎么分' },
+    trade: { name: '贸易', icon: 'Handshake', description: '买卖往来' },
+    wealth: { name: '财富', icon: 'Coins', description: '手头宽裕' },
+    centralization: { name: '集中', icon: 'Target', description: '事权归到一处' },
+    free_market: { name: '自由市场', icon: 'Store', description: '价钱随行就市' },
+    education: { name: '教育', icon: 'GraduationCap', description: '读书识字' },
+    welfare: { name: '福利', icon: 'Heart', description: '照顾困难户' },
+    privatization: { name: '私有', icon: 'Building', description: '产业归各家所有' },
+    efficiency: { name: '效率', icon: 'Zap', description: '办事利索' },
+    progress: { name: '进步', icon: 'TrendingUp', description: '技术往前赶' },
+    nature: { name: '自然', icon: 'Leaf', description: '山水草木' },
+    nation: { name: '民族', icon: 'Flag', description: '同乡同族的认同' },
+    stability: { name: '稳定', icon: 'Anchor', description: '日子安稳' },
 };
 
 // ========== 有效阶层列表 ==========
@@ -160,12 +160,12 @@ const CONDITION_TYPES = {
     coalition_size_above: {
         generate: () => ({ threshold: 2 + Math.floor(Math.random() * 3) }), // 2-4
         check: (params, gs) => (gs.rulingCoalition?.length || 0) >= params.threshold,
-        text: (params) => `联盟 ≥ ${params.threshold}个阶层`,
+        text: (params) => `联盟 ≥ ${params.threshold}个群体`,
     },
     coalition_size_below: {
         generate: () => ({ threshold: 2 + Math.floor(Math.random() * 2) }), // 2-3
         check: (params, gs) => (gs.rulingCoalition?.length || 0) <= params.threshold,
-        text: (params) => `联盟 ≤ ${params.threshold}个阶层`,
+        text: (params) => `联盟 ≤ ${params.threshold}个群体`,
     },
     coalition_includes: {
         generate: () => {
@@ -360,22 +360,22 @@ const CONDITION_TYPES = {
     },
 };
 
-// ========== 施政立场模板 ==========
-// 每种立场定义其可能使用的条件类型和效果
+// ========== 做事主张模板 ==========
+// 每种主张定义其可能使用的条件类型和效果
 const STANCE_TEMPLATES = {
     // ========== 石器时代 (epoch >= 0) ==========
     primitive_communism: {
-        name: '原始公社',
+        name: '平分共享',
         spectrum: 'left',
         icon: 'Users',
         color: 'text-red-400',
         unlockEpoch: 0,
         maxEpoch: 3, // 封建时代后消失
-        historicalRef: '氏族共有制',
-        description: '一切资源归部落共有',
+        historicalRef: '早期村落共耕',
+        description: '一切都归众人共有',
         issues: ['equality', 'collectivism'],
         conditionTypes: ['stratum_approval_above', 'stability_above', 'coalition_size_above'],
-        // 左派立场偏好的阶层（不包括地主、资本家）
+        // 普惠主张偏好的群体（不含世家、富商）
         preferredStrata: ['peasant', 'worker', 'artisan', 'serf'],
         stratumWeights: { peasant: 2.0, worker: 2.0, serf: 1.5, landowner: 0.2, merchant: 0.3, capitalist: 0.1 },
         activeEffects: { stability: 0.05, approval: { peasant: 4, worker: 4 } },
@@ -383,14 +383,14 @@ const STANCE_TEMPLATES = {
     },
 
     tribal_elder: {
-        name: '部落长老制',
+        name: '长老做主',
         spectrum: 'right',
         icon: 'Crown',
         color: 'text-amber-400',
         unlockEpoch: 0,
         maxEpoch: 2, // 古典时代后消失
         historicalRef: '早期酋长',
-        description: '尊崇长老权威',
+        description: '遇事先问长辈',
         issues: ['tradition', 'hierarchy'],
         conditionTypes: ['legitimacy_above', 'stratum_influence_above', 'population_below'],
         preferredStrata: ['landowner', 'cleric', 'official'],
@@ -400,14 +400,14 @@ const STANCE_TEMPLATES = {
     },
 
     animism: {
-        name: '万物有灵论',
+        name: '万物有灵',
         spectrum: 'center',
         icon: 'Leaf',
         color: 'text-green-400',
         unlockEpoch: 0,
         maxEpoch: 3, // 封建时代后消失
-        historicalRef: '原始宗教',
-        description: '敬畏自然神灵',
+        historicalRef: '早期自然崇拜',
+        description: '敬着山川草木',
         issues: ['spiritual', 'nature'],
         conditionTypes: ['stratum_approval_above', 'stability_above'],
         preferredStrata: ['cleric', 'peasant'],
@@ -424,7 +424,7 @@ const STANCE_TEMPLATES = {
         unlockEpoch: 0,
         maxEpoch: 5, // 启蒙时代后消失
         historicalRef: '原始部落战争',
-        description: '崇尚武力与征服',
+        description: '看重胆气和武艺',
         issues: ['military', 'expansion'],
         conditionTypes: ['at_war', 'stratum_approval_above'],
         preferredStrata: ['soldier', 'landowner'],
@@ -435,13 +435,13 @@ const STANCE_TEMPLATES = {
 
     // ========== 青铜时代 (epoch >= 1) ==========
     aristocratic_oligarchy: {
-        name: '贵族寡头制',
+        name: '世家做主',
         spectrum: 'right',
         icon: 'Castle',
         color: 'text-purple-400',
         unlockEpoch: 1,
-        historicalRef: '斯巴达双王制',
-        description: '权柄归于少数贵族',
+        historicalRef: '古希腊城邦旧制',
+        description: '大事由几家老户商定',
         issues: ['hierarchy', 'tradition'],
         conditionTypes: ['stratum_influence_above', 'coalition_includes', 'legitimacy_above'],
         preferredStrata: ['landowner', 'official', 'merchant'],
@@ -451,13 +451,13 @@ const STANCE_TEMPLATES = {
     },
 
     theocracy: {
-        name: '神权体制',
+        name: '敬神为先',
         spectrum: 'right',
         icon: 'Church',
         color: 'text-yellow-300',
         unlockEpoch: 1,
-        historicalRef: '古埃及法老',
-        description: '神的代言人统治',
+        historicalRef: '古埃及旧制',
+        description: '凡事敬神在先',
         issues: ['spiritual', 'hierarchy'],
         conditionTypes: ['coalition_includes', 'stratum_approval_above'],
         preferredStrata: ['cleric'],
@@ -468,13 +468,13 @@ const STANCE_TEMPLATES = {
 
     // ========== 古典时代 (epoch >= 2) ==========
     republicanism: {
-        name: '共和主义',
+        name: '众人共商',
         spectrum: 'center',
         icon: 'Scale',
         color: 'text-blue-400',
         unlockEpoch: 2,
-        historicalRef: '罗马共和国',
-        description: '公民参与公共事务',
+        historicalRef: '古罗马城邦旧制',
+        description: '大事大家坐下来谈',
         issues: ['liberty', 'law'],
         conditionTypes: ['coalition_size_above', 'legitimacy_above', 'stability_above'],
         preferredStrata: ['scribe', 'merchant', 'artisan', 'official'],
@@ -484,13 +484,13 @@ const STANCE_TEMPLATES = {
     },
 
     populares: {
-        name: '平民派',
+        name: '替平民说话',
         spectrum: 'left',
         icon: 'Users',
         color: 'text-orange-400',
         unlockEpoch: 2,
-        historicalRef: '格拉古兄弟',
-        description: '为平民争取权益',
+        historicalRef: '古罗马平民请愿',
+        description: '替平民争一份公道',
         issues: ['equality', 'reform'],
         conditionTypes: ['stratum_approval_above', 'stratum_living_standard', 'food_affordable'],
         preferredStrata: ['peasant', 'worker', 'artisan', 'serf'],
@@ -500,13 +500,13 @@ const STANCE_TEMPLATES = {
     },
 
     legalism: {
-        name: '法家',
+        name: '法家严治',
         spectrum: 'right',
         icon: 'Gavel',
         color: 'text-gray-300',
         unlockEpoch: 2,
-        historicalRef: '商鞅变法',
-        description: '严刑峻法治国',
+        historicalRef: '战国变法',
+        description: '用严法立规矩',
         issues: ['law', 'efficiency'],
         conditionTypes: ['avg_tax_above', 'stability_above'],
         preferredStrata: ['official', 'soldier', 'scribe'],
@@ -516,13 +516,13 @@ const STANCE_TEMPLATES = {
     },
 
     confucianism: {
-        name: '儒家',
+        name: '儒家礼治',
         spectrum: 'center',
         icon: 'Book',
         color: 'text-amber-300',
         unlockEpoch: 2,
-        historicalRef: '孔孟之道',
-        description: '礼教治国',
+        historicalRef: '先秦礼学',
+        description: '用礼法约束',
         issues: ['tradition', 'education'],
         conditionTypes: ['stratum_approval_above', 'stability_above', 'legitimacy_above'],
         preferredStrata: ['scribe', 'cleric', 'official'],
@@ -532,13 +532,13 @@ const STANCE_TEMPLATES = {
     },
 
     mohism: {
-        name: '墨家',
+        name: '墨家兼爱',
         spectrum: 'left',
         icon: 'Wrench',
         color: 'text-gray-400',
         unlockEpoch: 2,
-        historicalRef: '墨子兼爱非攻',
-        description: '兼爱非攻，尚同尚贤',
+        historicalRef: '先秦墨家',
+        description: '能帮就帮，不爱争斗',
         issues: ['equality', 'efficiency'],
         conditionTypes: ['at_peace', 'stratum_approval_above'],
         preferredStrata: ['artisan', 'worker', 'engineer'],
@@ -552,13 +552,13 @@ const STANCE_TEMPLATES = {
     },
 
     taoism: {
-        name: '道家',
+        name: '道家无为',
         spectrum: 'center',
         icon: 'Circle',
         color: 'text-slate-300',
         unlockEpoch: 2,
-        historicalRef: '老庄无为',
-        description: '无为而治',
+        historicalRef: '先秦道家',
+        description: '顺其自然',
         issues: ['liberty', 'nature'],
         conditionTypes: ['avg_tax_below', 'stability_above'],
         preferredStrata: ['cleric', 'peasant', 'scribe'],
@@ -569,13 +569,13 @@ const STANCE_TEMPLATES = {
 
     // ========== 封建时代 (epoch >= 3) ==========
     feudalism: {
-        name: '封建主义',
+        name: '层层分封',
         spectrum: 'right',
         icon: 'Castle',
         color: 'text-blue-500',
         unlockEpoch: 3,
         historicalRef: '中世纪欧洲分封',
-        description: '领主-附庸关系',
+        description: '上下相托，各管一片',
         issues: ['hierarchy', 'land'],
         conditionTypes: ['stratum_influence_above', 'legitimacy_above'],
         preferredStrata: ['landowner', 'official'],
@@ -585,13 +585,13 @@ const STANCE_TEMPLATES = {
     },
 
     peasant_revolt: {
-        name: '农民起义派',
+        name: '田户抗争',
         spectrum: 'left',
         icon: 'Flame',
         color: 'text-red-600',
         unlockEpoch: 3,
-        historicalRef: '黄巾起义、扎克雷起义',
-        description: '推翻压迫者',
+        historicalRef: '历代农人请愿',
+        description: '为田户争一份生计',
         issues: ['equality', 'revolution'],
         conditionTypes: ['stratum_approval_below', 'avg_tax_above', 'food_scarce', 'inflation_above'],
         preferredStrata: ['peasant', 'serf', 'worker'],
@@ -601,13 +601,13 @@ const STANCE_TEMPLATES = {
     },
 
     guild_corporatism: {
-        name: '行会主义',
+        name: '行会共济',
         spectrum: 'center',
         icon: 'Hammer',
         color: 'text-orange-300',
         unlockEpoch: 3,
         historicalRef: '中世纪行会',
-        description: '同业互助，质量至上',
+        description: '同行帮同行，货要做扎实',
         issues: ['trade', 'tradition'],
         conditionTypes: ['stratum_approval_above', 'stratum_income_above', 'resource_price_below', 'price_stability'],
         preferredStrata: ['artisan', 'merchant'],
@@ -625,13 +625,13 @@ const STANCE_TEMPLATES = {
 
     // ========== 探索时代 (epoch >= 4) ==========
     mercantilism: {
-        name: '重商主义',
+        name: '通商致富',
         spectrum: 'center',
         icon: 'Ship',
         color: 'text-cyan-400',
         unlockEpoch: 4,
-        historicalRef: '东印度公司',
-        description: '贸易国富之本',
+        historicalRef: '早期远洋商号',
+        description: '买卖做得越远，钱赚得越多',
         issues: ['trade', 'wealth'],
         conditionTypes: ['stratum_income_above', 'stratum_influence_above', 'resource_price_above', 'inflation_above'],
         preferredStrata: ['merchant', 'capitalist'],
@@ -641,13 +641,13 @@ const STANCE_TEMPLATES = {
     },
 
     absolutism: {
-        name: '绝对君主制',
+        name: '独断专行',
         spectrum: 'right',
         icon: 'Crown',
         color: 'text-purple-500',
         unlockEpoch: 4,
-        historicalRef: '路易十四、彼得大帝',
-        description: '朕即国家',
+        historicalRef: '近代君主集权',
+        description: '大事一个人定',
         issues: ['hierarchy', 'centralization'],
         conditionTypes: ['coalition_size_below', 'legitimacy_above'],
         preferredStrata: ['official', 'landowner'],
@@ -657,13 +657,13 @@ const STANCE_TEMPLATES = {
     },
 
     humanism: {
-        name: '人文主义',
+        name: '以人为本',
         spectrum: 'center',
         icon: 'Book',
         color: 'text-rose-300',
         unlockEpoch: 4,
         historicalRef: '文艺复兴',
-        description: '以人为本',
+        description: '肯在读书人和手艺人身上花钱',
         issues: ['education', 'progress'],
         conditionTypes: ['stratum_approval_above', 'epoch_at_least'],
         preferredStrata: ['scribe', 'artisan', 'engineer'],
@@ -673,13 +673,13 @@ const STANCE_TEMPLATES = {
     },
 
     colonialism: {
-        name: '殖民主义',
+        name: '向外拓殖',
         spectrum: 'right',
         icon: 'Globe',
         color: 'text-emerald-500',
         unlockEpoch: 4,
         historicalRef: '大航海时代',
-        description: '开拓新世界',
+        description: '愿意往远处做买卖',
         issues: ['expansion', 'trade'],
         conditionTypes: ['stratum_income_above', 'at_war'],
         preferredStrata: ['merchant', 'soldier', 'navigator'],
@@ -690,13 +690,13 @@ const STANCE_TEMPLATES = {
 
     // ========== 启蒙时代 (epoch >= 5) ==========
     classical_liberalism: {
-        name: '古典自由主义',
+        name: '放任自流',
         spectrum: 'center',
         icon: 'Lightbulb',
         color: 'text-yellow-400',
         unlockEpoch: 5,
-        historicalRef: '洛克、亚当斯密',
-        description: '自由放任经济',
+        historicalRef: '近代自由贸易学说',
+        description: '买卖的事让各家自己定',
         issues: ['liberty', 'free_market'],
         conditionTypes: ['avg_tax_below', 'stratum_approval_above', 'price_stability', 'deflation_below'],
         preferredStrata: ['merchant', 'capitalist', 'artisan'],
@@ -711,8 +711,8 @@ const STANCE_TEMPLATES = {
         icon: 'GraduationCap',
         color: 'text-indigo-400',
         unlockEpoch: 5,
-        historicalRef: '腎特烈大帝、叶卡捷琳娜',
-        description: '国王为国家第一仆人',
+        historicalRef: '近代开明君主',
+        description: '当家的先替众人办事',
         issues: ['reform', 'centralization'],
         conditionTypes: ['coalition_size_below', 'legitimacy_above', 'stability_above'],
         preferredStrata: ['official', 'scribe', 'engineer'],
@@ -721,13 +721,13 @@ const STANCE_TEMPLATES = {
         unsatisfiedPenalty: {},
     },
     conservatism: {
-        name: '保守主义',
+        name: '守成不变',
         spectrum: 'right',
         icon: 'Shield',
         color: 'text-gray-400',
         unlockEpoch: 5,
-        historicalRef: '伯克、梅特涅',
-        description: '维护传统秩序',
+        historicalRef: '近代保守思潮',
+        description: '老法子最稳当',
         issues: ['tradition', 'stability'],
         conditionTypes: ['stability_above', 'legitimacy_above'],
         preferredStrata: ['landowner', 'cleric', 'official'],
@@ -737,16 +737,16 @@ const STANCE_TEMPLATES = {
     },
 
     utopian_socialism: {
-        name: '空想社会主义',
+        name: '世外桃源',
         spectrum: 'left',
         icon: 'Sparkles',
         color: 'text-pink-400',
         unlockEpoch: 5,
-        historicalRef: '莫尔乌托邦、欧文',
-        description: '构建理想社会',
+        historicalRef: '早期空想公社',
+        description: '想要一个谁都过得好的地方',
         issues: ['equality', 'progress'],
         conditionTypes: ['stratum_approval_above', 'stratum_living_standard'],
-        // 左派立场只关心平民阶层，不关心地主/资本家
+        // 普惠主张只顾平民，不太顾世家和富商
         preferredStrata: ['worker', 'artisan', 'peasant', 'scribe'],
         stratumWeights: { scribe: 2.0, worker: 1.5, artisan: 1.5 },
         activeEffects: { researchSpeed: 0.12, approval: { worker: 8 } },
@@ -754,13 +754,13 @@ const STANCE_TEMPLATES = {
     },
 
     physiocracy: {
-        name: '重农主义',
+        name: '以农为先',
         spectrum: 'center',
         icon: 'Wheat',
         color: 'text-lime-400',
         unlockEpoch: 5,
-        historicalRef: '魁奈学派',
-        description: '土地是财富之源',
+        historicalRef: '重农学派',
+        description: '有地才有一切',
         issues: ['land', 'free_market'],
         conditionTypes: ['stratum_influence_above', 'stratum_approval_above', 'food_affordable', 'resource_price_below'],
         preferredStrata: ['landowner', 'peasant'],
@@ -771,13 +771,13 @@ const STANCE_TEMPLATES = {
 
     // ========== 工业时代 (epoch >= 6) ==========
     marxism: {
-        name: '马克思主义',
+        name: '工坊合伙',
         spectrum: 'left',
         icon: 'Factory',
         color: 'text-red-500',
         unlockEpoch: 6,
-        historicalRef: '共产党宣言',
-        description: '工人阶级体制',
+        historicalRef: '早期工坊合作运动',
+        description: '工坊由干活的人一起管',
         issues: ['equality', 'revolution', 'collectivism'],
         conditionTypes: ['coalition_includes', 'stratum_influence_above'],
         preferredStrata: ['worker', 'miner', 'artisan'],
@@ -795,13 +795,13 @@ const STANCE_TEMPLATES = {
     },
 
     social_democracy: {
-        name: '社会民主主义',
+        name: '渐进改良',
         spectrum: 'left',
         icon: 'HeartHandshake',
         color: 'text-rose-400',
         unlockEpoch: 6,
-        historicalRef: '伯恩斯坦修正主义',
-        description: '渐进改良',
+        historicalRef: '渐进改良思潮',
+        description: '一步一步来，不折腾',
         issues: ['equality', 'welfare'],
         conditionTypes: ['stratum_approval_above', 'stratum_living_standard', 'stability_above', 'food_affordable', 'price_stability'],
         preferredStrata: ['worker', 'scribe', 'artisan', 'peasant'],
@@ -811,13 +811,13 @@ const STANCE_TEMPLATES = {
     },
 
     anarchism: {
-        name: '无政府主义',
+        name: '不受拘束',
         spectrum: 'left',
         icon: 'CircleSlash',
         color: 'text-gray-500',
         unlockEpoch: 6,
-        historicalRef: '巴枯宁、克鲁泡特金',
-        description: '废除一切权威',
+        historicalRef: '早期自治互助思潮',
+        description: '不愿被条条框框管着',
         issues: ['liberty', 'revolution'],
         conditionTypes: ['stability_below', 'stratum_approval_below'],
         preferredStrata: ['worker', 'artisan', 'peasant'],
@@ -827,13 +827,13 @@ const STANCE_TEMPLATES = {
     },
 
     nationalism: {
-        name: '民族主义',
+        name: '心系故土',
         spectrum: 'right',
         icon: 'Flag',
         color: 'text-orange-500',
         unlockEpoch: 6,
-        historicalRef: '俨斯麦统一德国',
-        description: '民族国家至上',
+        historicalRef: '近代德国统一',
+        description: '惦记家乡，护着乡里',
         issues: ['nation', 'military'],
         conditionTypes: ['at_war', 'stratum_approval_above'],
         preferredStrata: ['soldier', 'official', 'landowner'],
@@ -842,13 +842,13 @@ const STANCE_TEMPLATES = {
         unsatisfiedPenalty: {},
     },
     neoliberalism: {
-        name: '新自由主义',
+        name: '放任经营',
         spectrum: 'right',
         icon: 'TrendingUp',
         color: 'text-emerald-400',
         unlockEpoch: 6,
-        historicalRef: '哈耶克、弗里德曼',
-        description: '市场万能',
+        historicalRef: '现代自由市场学说',
+        description: '买卖随行就市',
         issues: ['free_market', 'privatization'],
         conditionTypes: ['stratum_income_above', 'avg_tax_below', 'resource_price_above', 'inflation_above'],
         preferredStrata: ['capitalist', 'merchant'],
@@ -858,13 +858,13 @@ const STANCE_TEMPLATES = {
     },
 
     technocracy: {
-        name: '技术官僚主义',
+        name: '行家做主',
         spectrum: 'center',
         icon: 'Cpu',
         color: 'text-sky-400',
         unlockEpoch: 6,
-        historicalRef: '圣西门、专家治国',
-        description: '让专家决策',
+        historicalRef: '早期管理学派',
+        description: '内行说了算',
         issues: ['efficiency', 'progress'],
         conditionTypes: ['epoch_at_least', 'stratum_influence_above'],
         preferredStrata: ['engineer', 'scribe', 'official'],
@@ -879,13 +879,13 @@ const STANCE_TEMPLATES = {
 
     // ========== 信息时代 (epoch >= 7) ==========
     digital_democracy: {
-        name: '数字民主',
+        name: '线上共商',
         spectrum: 'center',
         icon: 'Monitor',
         color: 'text-cyan-300',
         unlockEpoch: 7,
-        historicalRef: '电子政务、区块链投票',
-        description: '网络参与决策',
+        historicalRef: '网络议事工具',
+        description: '有事上网办，少跑腿',
         issues: ['liberty', 'progress'],
         conditionTypes: ['coalition_size_above', 'stability_above', 'legitimacy_above'],
         preferredStrata: ['engineer', 'scribe', 'worker'],
@@ -895,13 +895,13 @@ const STANCE_TEMPLATES = {
     },
 
     eco_socialism: {
-        name: '生态社会主义',
+        name: '与自然共处',
         spectrum: 'left',
         icon: 'Leaf',
         color: 'text-green-500',
         unlockEpoch: 7,
-        historicalRef: '绿色新政',
-        description: '环境公正',
+        historicalRef: '现代环保运动',
+        description: '不糟蹋山水',
         issues: ['equality', 'nature'],
         conditionTypes: ['stratum_approval_above', 'stability_above'],
         preferredStrata: ['worker', 'peasant', 'engineer'],
@@ -911,13 +911,13 @@ const STANCE_TEMPLATES = {
     },
 
     transhumanism: {
-        name: '超人类主义',
+        name: '超越极限',
         spectrum: 'right',
         icon: 'Zap',
         color: 'text-violet-400',
         unlockEpoch: 7,
-        historicalRef: '技术奇点',
-        description: '超越人类极限',
+        historicalRef: '未来技术设想',
+        description: '总想突破身体的上限',
         issues: ['progress', 'efficiency'],
         conditionTypes: ['epoch_at_least', 'stratum_income_above'],
         preferredStrata: ['engineer', 'capitalist'],
@@ -927,11 +927,11 @@ const STANCE_TEMPLATES = {
     },
 };
 
-// ========== 运行时施政立场存储 ==========
-// 此对象存储带有生成条件的立场实例
+// ========== 运行时做事主张存储 ==========
+// 此对象存储带有生成条件的主张实例
 export const POLITICAL_STANCES = {};
 
-// 初始化基础立场（不含动态条件）
+// 初始化基础主张（不含动态条件）
 Object.entries(STANCE_TEMPLATES).forEach(([id, template]) => {
     POLITICAL_STANCES[id] = {
         id,
@@ -945,21 +945,21 @@ Object.entries(STANCE_TEMPLATES).forEach(([id, template]) => {
 // ========== 辅助API ==========
 
 /**
- * 获取指定时代可用的立场列表
+ * 获取指定时代可用的主张列表
  */
 export function getAvailableStances(epoch) {
     return Object.values(STANCE_TEMPLATES).filter(s => s.unlockEpoch <= epoch);
 }
 
 /**
- * 为官员生成带动态条件的施政立场
+ * 为官员生成带动态条件的做事主张
  * @param {string} sourceStratum - 官员出身阶层
  * @param {number} epoch - 当前时代
  * @param {Object} market - 当前市场数据（包含 prices 等信息）
  * @returns {Object} { stanceId, conditionParams, conditionText }
  */
 export function assignPoliticalStance(sourceStratum, epoch, market = null) {
-    // 获取可用立场（考虑时代上下限）
+    // 获取可用主张（考虑时代上下限）
     const available = Object.entries(STANCE_TEMPLATES).filter(([, stance]) => {
         const minEpoch = stance.unlockEpoch || 0;
         const maxEpoch = stance.maxEpoch ?? 999; // 默认无上限
@@ -982,7 +982,7 @@ export function assignPoliticalStance(sourceStratum, epoch, market = null) {
         totalWeight += stratumWeight;
     });
 
-    // 选择立场
+    // 选择主张
     let random = Math.random() * totalWeight;
     let selectedId = available[0].id;
     for (const stance of available) {
@@ -1027,7 +1027,7 @@ export function assignPoliticalStance(sourceStratum, epoch, market = null) {
         });
     };
 
-    // 获取立场偏好的阶层列表（用于生成符合立场意识形态的条件）
+    // 获取主张偏好的阶层列表（用于生成符合主张意识形态的条件）
     const preferredStrata = stance.preferredStrata || [sourceStratum];
     // 从偏好阶层中随机选择一个用于条件
     const getPreferredStratum = () => {
@@ -1042,7 +1042,7 @@ export function assignPoliticalStance(sourceStratum, epoch, market = null) {
     const coalitionType = coalitionCondTypes[Math.floor(Math.random() * coalitionCondTypes.length)];
     const coalitionCondDef = CONDITION_TYPES[coalitionType];
     if (coalitionCondDef) {
-        // 对于 coalition_includes，使用立场偏好的阶层（而非出身阶层）
+        // 对于 coalition_includes，使用主张偏好的阶层（而非出身阶层）
         let params;
         if (coalitionType === 'coalition_includes') {
             const preferredStratum = getPreferredStratum();
@@ -1061,8 +1061,8 @@ export function assignPoliticalStance(sourceStratum, epoch, market = null) {
         });
     }
 
-    // === 添加1-2个与立场相关阶层的条件（基于preferredStrata而非出身阶层） ===
-    // 注意：移除了 stratum_approval_below，因为"希望某阶层满意度低"只适合激进立场（农民起义派、无政府主义等）
+    // === 添加1-2个与主张相关阶层的条件（基于preferredStrata而非出身阶层） ===
+    // 注意：移除了 stratum_approval_below，因为"希望某阶层满意度低"只适合激进主张（田户抗争、不受拘束等）
     const stratumRelatedTypes = [
         'stratum_approval_above', 'stratum_influence_above', 'stratum_living_standard', 'stratum_income_above'
     ];
@@ -1074,7 +1074,7 @@ export function assignPoliticalStance(sourceStratum, epoch, market = null) {
         const condDef = CONDITION_TYPES[typeId];
         if (condDef) {
             let params = condDef.generate(market);
-            // 90%概率使用立场偏好阶层（确保条件与立场意识形态匹配）
+            // 90%概率使用主张偏好阶层（确保条件与主张意识形态匹配）
             if (Math.random() < 0.9 && preferredStrata.length > 0) {
                 params.stratum = getPreferredStratum();
             }
@@ -1121,7 +1121,7 @@ export function assignPoliticalStance(sourceStratum, epoch, market = null) {
         }
     }
 
-    // === 可选：从立场定义的条件类型中选择1个（去重） ===
+    // === 可选：从主张定义的条件类型中选择1个（去重） ===
     const stanceCondTypes = stance.conditionTypes || [];
     if (stanceCondTypes.length > 0 && Math.random() < 0.5) {
         const typeId = stanceCondTypes[Math.floor(Math.random() * stanceCondTypes.length)];
@@ -1145,7 +1145,7 @@ export function assignPoliticalStance(sourceStratum, epoch, market = null) {
     // 合成条件文本
     const conditionText = conditions.map(c => c.text).join(' 且 ');
 
-    // === 为该官员随机化效果（基于立场模板，加减20%浮动） ===
+    // === 为该官员随机化效果（基于主张模板，加减20%浮动） ===
     const randomizeEffectValue = (value) => {
         if (typeof value !== 'number') return value;
         // 在 0.8 ~ 1.2 之间浮动
@@ -1184,7 +1184,7 @@ export function assignPoliticalStance(sourceStratum, epoch, market = null) {
 }
 
 /**
- * 检查立场是否被满足
+ * 检查主张是否被满足
  */
 export function isStanceSatisfied(stanceId, gameState, conditionParams) {
     if (!conditionParams || conditionParams.length === 0) return false;
@@ -1196,14 +1196,14 @@ export function isStanceSatisfied(stanceId, gameState, conditionParams) {
 }
 
 /**
- * 获取立场基础信息
+ * 获取主张基础信息
  */
 export function getStanceInfo(stanceId) {
     return POLITICAL_STANCES[stanceId] || STANCE_TEMPLATES[stanceId] || null;
 }
 
 /**
- * 获取立场的当前效果
+ * 获取主张的当前效果
  */
 export function getStanceEffects(stanceId, gameState, conditionParams) {
     const stance = STANCE_TEMPLATES[stanceId];

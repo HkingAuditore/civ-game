@@ -749,7 +749,7 @@ export const STATIC_DIPLOMATIC_EVENTS = [
     id: 'succession_crisis',
     name: '邻国内乱',
     icon: 'Crown',
-    description: '邻国发生了继承权危机，多个派系争夺王位。我们要介入吗？',
+    description: '邻国发生了继承权危机，多个势力争夺王位。我们要介入吗？',
     triggerConditions: { minPopulation: 200, minEpoch: 2, maxEpoch: 5 },
     options: [
       {

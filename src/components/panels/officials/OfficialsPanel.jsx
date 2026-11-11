@@ -90,7 +90,7 @@ export const OfficialsPanel = ({
 
     const centristDecrees = useMemo(() => getCentristCabinetDecrees(decrees), [decrees]);
 
-    // 派系面板弹窗状态
+    // 班底面板弹窗状态
     const [showDominancePanel, setShowDominancePanel] = useState(false);
     const [selectedOfficial, setSelectedOfficial] = useState(null);
     const [searchText, setSearchText] = useState('');
@@ -233,7 +233,7 @@ export const OfficialsPanel = ({
         return filteredOfficials.slice(start, start + pageSize);
     }, [filteredOfficials, safePage, pageSize]);
 
-    // 统一在父层计算官员施政主张满足状态，避免列表/详情口径不一致和重复计算
+    // 统一在父层计算官员做事主张满足状态，避免列表/详情口径不一致和重复计算
     const stanceSatisfiedByOfficialId = useMemo(() => {
         const result = new Map();
         officials.forEach((official) => {
@@ -286,23 +286,23 @@ export const OfficialsPanel = ({
         [officials, activeDecrees, capacity, epoch]
     );
 
-    // 确定显示哪个派系面板
+    // 确定显示哪个班底面板
     const dominantPanel = cabinetStatus?.dominance?.panelType;
     const dominanceInfo = cabinetStatus?.dominance;
     const dominanceMinEpochName = EPOCHS[DOMINANCE_MIN_EPOCH]?.name || `时代${DOMINANCE_MIN_EPOCH}`;
 
-    // 派系面板配置
+    // 班底面板配置
     const panelConfig = {
         plannedEconomy: {
             icon: 'Users',
-            label: '计划经济',
+            label: '统筹调配',
             color: 'red',
             bgClass: 'bg-red-600 hover:bg-red-500',
             borderClass: 'border-red-500/50',
         },
         freeMarket: {
             icon: 'TrendingUp',
-            label: '自由市场',
+            label: '自由买卖',
             color: 'amber',
             bgClass: 'bg-amber-600 hover:bg-amber-500',
             borderClass: 'border-amber-500/50',
@@ -546,7 +546,7 @@ export const OfficialsPanel = ({
                 />
             )}
 
-            {/* 3. 主导派系入口按钮 */}
+            {/* 3. 主导班底入口按钮 */}
             {dominantPanel && currentPanelConfig ? (
                 <div className={`bg-gray-900/60 rounded-lg p-3 border ${currentPanelConfig.borderClass} shadow-lg`}>
                     <div className="flex items-center justify-between">
@@ -556,7 +556,7 @@ export const OfficialsPanel = ({
                             </div>
                             <div>
                                 <h4 className="font-bold text-sm text-gray-100 flex items-center gap-2">
-                                    {dominanceInfo?.name || '派系主导'}
+                                    {dominanceInfo?.name || '班底主导'}
                                     <span className={`text-xs px-2 py-0.5 rounded-full bg-${currentPanelConfig.color}-900/50 text-${currentPanelConfig.color}-300`}>
                                         {dominanceInfo?.percentage}% 占比
                                     </span>
@@ -576,21 +576,21 @@ export const OfficialsPanel = ({
                     </div>
                 </div>
             ) : (
-                /* 显示潜在的主导派系（如果有派系占比超过阈值但其他条件未满足） */
+                /* 显示潜在的主导班底（如果有班底占比超过阈值但其他条件未满足） */
                 (() => {
                     const potential = cabinetStatus?.distribution;
                     if (!potential) return null;
                     const total = officials.length;
                     if (total === 0) return null;
 
-                    // 检测是否有派系占比很高但未触发主导
+                    // 检测是否有班底占比很高但未触发主导
                     const DOMINANCE_THRESHOLD = 0.4; // 稍微放宽显示阈值
                     const sorted = Object.entries(potential).sort((a, b) => b[1] - a[1]);
                     const [topFaction, count] = sorted[0];
                     const ratio = count / total;
 
                     if (ratio >= DOMINANCE_THRESHOLD) {
-                        const factionName = topFaction === 'left' ? '计划经济' : (topFaction === 'right' ? '自由市场' : '改良法令');
+                        const factionName = topFaction === 'left' ? '统筹调配' : (topFaction === 'right' ? '自由买卖' : '临时章程');
                         const factionColor = topFaction === 'left' ? 'red' : (topFaction === 'right' ? 'amber' : 'blue');
                         const missingCapacity = capacity * 0.5 - total; // 恢复基于 0.5 的阈值提示
                         const isEpochLocked = epoch < DOMINANCE_MIN_EPOCH;
@@ -786,11 +786,11 @@ export const OfficialsPanel = ({
                                 onChange={(event) => setStanceFilter(event.target.value)}
                                 className="bg-gray-900/60 border border-gray-700/60 rounded px-2 py-1 text-xs text-gray-200"
                             >
-                                <option value="all">全部派系</option>
-                                <option value="left">左派</option>
-                                <option value="center">建制派</option>
-                                <option value="right">右派</option>
-                                <option value="none">无立场</option>
+                                <option value="all">全部主张</option>
+                                <option value="left">普惠</option>
+                                <option value="center">稳健</option>
+                                <option value="right">进取</option>
+                                <option value="none">无主张</option>
                             </select>
                             <select
                                 value={stratumFilter}
@@ -882,7 +882,7 @@ export const OfficialsPanel = ({
                 </div>
             )}
 
-            {/* 派系面板弹窗 - 使用 Portal 渲染到 body 顶层 */}
+            {/* 班底面板弹窗 - 使用 Portal 渲染到 body 顶层 */}
             {showDominancePanel && dominantPanel && (
                 <ResponsiveModal
                     isOpen={showDominancePanel}
@@ -890,7 +890,7 @@ export const OfficialsPanel = ({
                     size="md"
                     mobileMode="sheet"
                     panelClassName="w-full max-w-2xl h-full sm:max-h-[85vh] bg-gray-900 rounded-t-2xl sm:rounded-2xl border border-gray-700 shadow-2xl overflow-hidden animate-slide-up flex flex-col"
-                    ariaLabel="派系面板"
+                    ariaLabel="班底面板"
                     zIndexClass="z-[9999]"
                 >
                         {/* 弹窗头部 */}

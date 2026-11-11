@@ -440,7 +440,7 @@ export const SCENARIOS = [
         icon: '💰',
         description: '金银满仓，财源广进。贵族积累雄厚财富，商人控制繁忙贸易网络，资本家筹划更大投资。金钱是这里最有力的武器。',
         tags: ['有钱', '财政优势', '时代5'],
-        highlights: ['银币极其充裕', '上层阶级极富', '奢侈品遍地'],
+        highlights: ['银币极其充裕', '上层极富', '奢侈品遍地'],
         overrides: {
             resources: { 
                 silver: 20000000, food: 2000000, wood: 600000, stone: 500000, 

@@ -168,11 +168,11 @@ const calculateUpgradeProfitGain = (building, fromLevel, toLevel, market, taxPol
     return nextProfit - currentProfit;
 };
 
-// 施政立场对应的投资概率乘数（基础概率）
-// 左派倾向于反对私有资本积累，右派倾向于支持
+// 做事主张对应的投资概率乘数（基础概率）
+// 普惠倾向于反对私有资本积累，进取倾向于支持
 const STANCE_INVESTMENT_PROBABILITY = {
     // Left (Anti-Capitalist)
-    marxism: 0.0,             // 马克思主义：坚决反对私有制
+    marxism: 0.0,             // 工坊共治：坚决反对私有制
     primitive_communism: 0.05,
     peasant_revolt: 0.1,
     utopian_socialism: 0.2,

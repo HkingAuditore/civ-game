@@ -2741,18 +2741,18 @@ export const EPOCH_EVENTS = [
     },
     {
         id: 'communist_manifesto',
-        name: '共产主义宣言',
+        name: '小册子流传',
         icon: 'BookOpen',
         image: null,
-        description: '一本名为《共产主义宣言》的小册子在工人中广泛传播，它呼吁工人阶级联合起来推翻资本主义制度。当局对此深感忧虑。',
+        description: '一本无名小册子在工坊间悄悄传抄，书里说：出力气的人应当分得更多。管事们对此颇为不安。',
         triggerConditions: {
             minEpoch: 6,
         },
         options: [
             {
                 id: 'suppress_movement',
-                text: '镇压运动',
-                description: '逮捕传播者，查禁书籍。',
+                text: '查禁传抄',
+                description: '收缴册子，追查源头。',
                 effects: {
                     stability: 5,
                     resourceDemandMod: { food: -0.1 },
@@ -2766,8 +2766,8 @@ export const EPOCH_EVENTS = [
             },
             {
                 id: 'reform_to_defuse',
-                text: '改革化解',
-                description: '通过社会改革来减少激进思想的吸引力。',
+                text: '让利化解',
+                description: '给匠工多分一些，让这股风气自然消下去。',
                 effects: {
                     resourcePercent: {
                         silver: -0.03,
@@ -2787,8 +2787,8 @@ export const EPOCH_EVENTS = [
             },
             {
                 id: 'allow_debate',
-                text: '允许辩论',
-                description: '思想自由是社会进步的基础。',
+                text: '任其议论',
+                description: '堵不如疏，由他们议论去。',
                 effects: {
                     resourcePercent: {
                         culture: 0.03,

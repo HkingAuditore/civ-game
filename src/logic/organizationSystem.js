@@ -50,12 +50,12 @@ export const STAGE_THRESHOLDS = {
 // 阶层影响力倍增器 - 权贵阶层组织能力更强
 // 与 strata.js 中的阶层保持一致
 export const STRATUM_ORGANIZATION_MULTIPLIER = {
-    // 上层阶级
+    // 上层
     capitalist: 2.4,    // 资本家 (原2.0)
     landowner: 1.8,     // 地主 (原1.5)
     official: 1.5,      // 官员 (原1.2)
     engineer: 1.4,      // 工程师 (原1.0)
-    // 中层阶级
+    // 中层
     merchant: 1.5,      // 商人 (原1.1)
     soldier: 1.5,       // 军人 (原1.2)
     navigator: 1.3,     // 水手 (原1.0)
@@ -64,7 +64,7 @@ export const STRATUM_ORGANIZATION_MULTIPLIER = {
     worker: 1.3,        // 工人 (原1.0)
     artisan: 1.2,       // 工匠 (原0.8)
     miner: 1.0,         // 矿工 (降低：初级资源阶层叛乱过频)
-    // 底层阶级
+    // 下层
     peasant: 0.9,       // 自耕农 (降低：初级资源阶层叛乱过频)
     lumberjack: 0.9,    // 樵夫 (降低：初级资源阶层叛乱过频)
     serf: 0.9,          // 佃农 (原0.6)
@@ -120,7 +120,7 @@ export const COALITION_REBELLION_CONFIG = {
 
 /**
  * 检测是否可以发动联合叛乱
- * 当一个阶层达到100%组织度时调用，检测其他高组织度阶层
+ * 当一个群体达到100%组织度时调用，检测其他高组织度阶层
  * @param {string} primaryStratumKey - 触发叛乱的主要阶层
  * @param {Object} organizationStates - 所有阶层的组织度状态
  * @param {Object} classInfluence - 阶层影响力
@@ -544,7 +544,7 @@ export function calculateOrganizationGrowthRate(approval, influenceShare, stabil
 }
 
 /**
- * 更新单个阶层的组织度状态
+ * 更新单个群体的组织度状态
  * @param {Object} currentState - 当前组织度状态
  * @param {number} approval - 满意度
  * @param {number} influenceShare - 影响力占比

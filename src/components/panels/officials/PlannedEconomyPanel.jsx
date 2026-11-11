@@ -1,5 +1,5 @@
 /**
- * 计划经济面板 - 左派主导时显示
+ * 统筹调配面板 - 普惠班底主导时显示
  * 允许玩家设置各阶层的目标人口比例和政府价格管制
  */
 
@@ -27,7 +27,7 @@ const getTradableResources = () => {
 };
 
 /**
- * 单个阶层配额滑块
+ * 单个群体配额滑块
  */
 const QuotaSlider = ({ stratum, currentPercent, targetPercent, onChange, disabled }) => {
     const strataDef = STRATA[stratum];
@@ -140,7 +140,7 @@ const PriceControlRow = ({ resourceKey, resourceDef, marketPrice, govBuyPrice, g
 };
 
 /**
- * 计划经济面板
+ * 统筹调配面板
  */
 export const PlannedEconomyPanel = ({
     popStructure = {},

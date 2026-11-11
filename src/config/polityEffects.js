@@ -12,7 +12,7 @@ import { STRATA } from './strata';
  * - exactCoalition:精确匹配联盟成员 (数组)
  * - includes: 必须包含的阶层 (数组)
  * - excludes: 必须不包含的阶层 (数组)
- * - includesAny: 必须包含其中任意一个阶层 (数组)
+ * - includesAny: 必须包含其中任意一个群体 (数组)
  * - minCategoryShare: 分类影响力占比最小值 { category: threshold }
  * - minTotalShare: 总影响力占比最小值 [{ categories: [], threshold: 0 }]
  * - includesGroup: 必须包含指定组的成员 ['upper', 'middle', 'lower'] (需全部包含至少一个)
@@ -40,9 +40,9 @@ export const POLITY_DEFINITIONS = [
     // 1. 单一阶层主导 (优先级 1000)
     // ============================================
     {
-        name: '地主庄园体制',
+        name: '田庄当家',
         priority: 1000,
-        description: '大地主阶层影响力占优',
+        description: '田产大户影响力占优',
         icon: 'Castle',
         color: 'text-amber-500',
         conditions: { exactCoalition: ['landowner'] },
@@ -57,9 +57,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '资本垄断体制',
+        name: '富商当家',
         priority: 1000,
-        description: '资本家独占国家权力',
+        description: '富商独占鳌头',
         icon: 'Briefcase',
         color: 'text-blue-400',
         conditions: { exactCoalition: ['capitalist'] },
@@ -74,9 +74,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '官僚体制',
+        name: '管事当家',
         priority: 1000,
-        description: '官僚阶层影响力占优',
+        description: '管事群体影响力占优',
         icon: 'ScrollText',
         color: 'text-purple-400',
         conditions: { exactCoalition: ['official'] },
@@ -92,9 +92,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '商业寡头体制',
+        name: '商户当家',
         priority: 1000,
-        description: '商人阶层掌控国家',
+        description: '商户掌控局面',
         icon: 'Coins',
         color: 'text-yellow-400',
         conditions: { exactCoalition: ['merchant'] },
@@ -108,9 +108,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '神权体制',
+        name: '敬神当家',
         priority: 1000,
-        description: '神职人员主导国家',
+        description: '敬神者主导局面',
         icon: 'Cross',
         color: 'text-indigo-400',
         conditions: { exactCoalition: ['cleric'] },
@@ -125,9 +125,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '军人主导',
+        name: '军人当家',
         priority: 1000,
-        description: '军队独揽大权',
+        description: '军人独揽大权',
         icon: 'Swords',
         color: 'text-red-400',
         conditions: { exactCoalition: ['soldier'] },
@@ -142,9 +142,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '劳工主导',
+        name: '工坊当家',
         priority: 1000,
-        description: '工人阶级影响力占优',
+        description: '工坊群体影响力占优',
         icon: 'Hammer',
         color: 'text-red-600',
         conditions: { exactCoalition: ['worker'] },
@@ -159,9 +159,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '农民主导',
+        name: '农户当家',
         priority: 1000,
-        description: '农民阶层影响力占优',
+        description: '农户群体影响力占优',
         icon: 'Wheat',
         color: 'text-green-500',
         conditions: { exactCoalition: ['peasant'] },
@@ -176,9 +176,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '技术官僚体制',
+        name: '工匠当家',
         priority: 1000,
-        description: '工程师主导国家',
+        description: '工匠主导局面',
         icon: 'Cog',
         color: 'text-cyan-400',
         conditions: { exactCoalition: ['engineer'] },
@@ -194,9 +194,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '学者共治',
+        name: '书生当家',
         priority: 1000,
-        description: '知识分子掌权',
+        description: '读书人主事',
         icon: 'Feather',
         color: 'text-blue-300',
         conditions: { exactCoalition: ['scribe'] },
@@ -211,9 +211,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '行会共治',
+        name: '行会当家',
         priority: 1000,
-        description: '工匠行会主政',
+        description: '工匠行会主事',
         icon: 'Anvil',
         color: 'text-orange-400',
         conditions: { exactCoalition: ['artisan'] },
@@ -227,9 +227,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '海上共治',
+        name: '船帮当家',
         priority: 1000,
-        description: '航海家群体影响力占优',
+        description: '船帮群体影响力占优',
         icon: 'Compass',
         color: 'text-teal-400',
         conditions: { exactCoalition: ['navigator'] },
@@ -243,9 +243,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '矿业工人主导',
+        name: '矿工当家',
         priority: 1000,
-        description: '矿工阶层影响力占优',
+        description: '矿工群体影响力占优',
         icon: 'Pickaxe',
         color: 'text-gray-400',
         conditions: { exactCoalition: ['miner'] },
@@ -259,9 +259,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '佃农起义体制',
+        name: '佃户当家',
         priority: 1000,
-        description: '佃农阶层影响力占优',
+        description: '佃户群体影响力占优',
         icon: 'Users',
         color: 'text-brown-400',
         conditions: { exactCoalition: ['serf'] },
@@ -275,9 +275,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '林业工人主导',
+        name: '樵夫当家',
         priority: 1000,
-        description: '樵夫阶层影响力占优',
+        description: '樵夫群体影响力占优',
         icon: 'Trees',
         color: 'text-green-600',
         conditions: { exactCoalition: ['lumberjack'] },
@@ -290,9 +290,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '技术工人委员会',
+        name: '技工当家',
         priority: 1000,
-        description: '技术工人阶层影响力占优，以工业技术为核心',
+        description: '技工群体影响力占优，以工艺为核心',
         icon: 'Wrench',
         color: 'text-cyan-500',
         conditions: { exactCoalition: ['technician'] },
@@ -307,9 +307,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '科学家委员会',
+        name: '学者当家',
         priority: 1000,
-        description: '顶尖科学家主导国家，以知识与研究为最高权威',
+        description: '顶尖学者主导，以学问为最高标准',
         icon: 'Microscope',
         color: 'text-violet-400',
         conditions: { exactCoalition: ['scientist'] },
@@ -326,9 +326,9 @@ export const POLITY_DEFINITIONS = [
     },
     // 单一阶层兜底 (优先级 999)
     {
-        name: '集权体制',
+        name: '一家独揽',
         priority: 999,
-        description: '单一阶层主导',
+        description: '单一群体主导',
         icon: 'Crown',
         color: 'text-amber-400',
         conditions: { maxSize: 1 },
@@ -344,9 +344,9 @@ export const POLITY_DEFINITIONS = [
     // ============================================
     // 工农联盟
     {
-        name: '工农联合共治',
+        name: '农工并举',
         priority: 910,
-        description: '工人与农民阶层联合共治',
+        description: '工坊与农户联合主事',
         icon: 'Handshake',
         color: 'text-red-500',
         conditions: {
@@ -364,9 +364,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '工农共治体制',
+        name: '农工合伙',
         priority: 900,
-        description: '以工农联盟为基础的共治',
+        description: '工坊与农户为根基',
         icon: 'Users',
         color: 'text-red-600',
         conditions: {
@@ -384,11 +384,11 @@ export const POLITY_DEFINITIONS = [
         },
     },
 
-    // 资产阶级民主
+    // 富户共议
     {
-        name: '资产阶级共治',
+        name: '富户共事',
         priority: 900,
-        description: '资产阶级主导的民主体制',
+        description: '富户主导的共事',
         icon: 'Building2',
         color: 'text-blue-400',
         conditions: {
@@ -400,7 +400,7 @@ export const POLITY_DEFINITIONS = [
             industry: 0.15,
             taxIncome: 0.12,
             buildingProductionMod: { market: 0.1 },
-            officialCapacity: 3, // 资产阶级共治增加官员容量
+            officialCapacity: 3, // 富户共议增加官员容量
         },
         officialPreferences: {
             stratumWeights: { capitalist: 2.0, merchant: 1.8, engineer: 1.3 },
@@ -408,9 +408,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '资本主义寡头体制',
+        name: '大户当家',
         priority: 890, // Fallback for Bourgeoisie
-        description: '资产阶级影响力占优',
+        description: '富户影响力占优',
         icon: 'Briefcase',
         color: 'text-blue-500',
         conditions: {
@@ -430,9 +430,9 @@ export const POLITY_DEFINITIONS = [
 
     // 贵族联盟
     {
-        name: '封建神权联盟',
+        name: '田庄敬神',
         priority: 900,
-        description: '传统贵族与教会联合共治',
+        description: '世家与教士联合主事',
         icon: 'Crown',
         color: 'text-purple-500',
         conditions: {
@@ -451,9 +451,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '贵族寡头体制',
+        name: '世家当家',
         priority: 890, // Fallback for Aristocracy
-        description: '传统贵族阶层联合共治',
+        description: '世家群体联合主事',
         icon: 'Castle',
         color: 'text-amber-500',
         conditions: {
@@ -472,9 +472,9 @@ export const POLITY_DEFINITIONS = [
 
     // 军政府
     {
-        name: '军事-精英联盟',
+        name: '军人富户',
         priority: 900,
-        description: '军队与精英阶层联合共治',
+        description: '军人与富户联合主事',
         icon: 'Shield',
         color: 'text-red-500',
         conditions: {
@@ -492,9 +492,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '军务体制',
+        name: '军人主事',
         priority: 890, // Fallback for Military
-        description: '军事力量占优',
+        description: '武备占优',
         icon: 'Swords',
         color: 'text-red-600',
         conditions: {
@@ -513,9 +513,9 @@ export const POLITY_DEFINITIONS = [
 
     // 神权贵族联盟
     {
-        name: '神权封建王国',
+        name: '田庄香火',
         priority: 900,
-        description: '地主与神职人员联合，以土地和信仰双重统治',
+        description: '田产与教士联合，以田亩与香火互撑',
         icon: 'Crown',
         color: 'text-purple-600',
         conditions: {
@@ -537,9 +537,9 @@ export const POLITY_DEFINITIONS = [
 
     // 商业帝国
     {
-        name: '商业帝国',
+        name: '商路通达',
         priority: 900,
-        description: '商人与航海家联合，以贸易和海权主导国家',
+        description: '商户与船帮联合，以通商与海路为根基',
         icon: 'Ship',
         color: 'text-teal-500',
         conditions: {
@@ -559,9 +559,9 @@ export const POLITY_DEFINITIONS = [
 
     // 工业资本-军事联盟
     {
-        name: '军国主义帝国',
+        name: '兵工并举',
         priority: 900,
-        description: '资本家与军人联合，以工业力量支撑军事扩张',
+        description: '大户与军人联合，以工坊之力支撑扩张',
         icon: 'Shield',
         color: 'text-red-700',
         conditions: {
@@ -582,9 +582,9 @@ export const POLITY_DEFINITIONS = [
 
     // 科技联盟（信息时代）
     {
-        name: '科技共治',
+        name: '学者共事',
         priority: 900,
-        description: '技术工人与科学家联合，以技术创新驱动国家',
+        description: '技工与学者联合，以技艺创新为先',
         icon: 'Atom',
         color: 'text-violet-500',
         conditions: {
@@ -605,9 +605,9 @@ export const POLITY_DEFINITIONS = [
 
     // 知识精英联盟
     {
-        name: '知识精英共治',
+        name: '文理共事',
         priority: 900,
-        description: '学者、工程师与科学家联合，以知识和技术治国',
+        description: '读书人、工匠与学者联合，以学问与技艺为根基',
         icon: 'GraduationCap',
         color: 'text-blue-500',
         conditions: {
@@ -628,9 +628,9 @@ export const POLITY_DEFINITIONS = [
 
     // 工业三角联盟
     {
-        name: '工业三角同盟',
+        name: '工坊合流',
         priority: 900,
-        description: '工人、技术工人与资本家联合，形成完整工业体系',
+        description: '工坊、技工与大户联合，形成完整工坊体系',
         icon: 'Factory',
         color: 'text-orange-600',
         conditions: {
@@ -650,9 +650,9 @@ export const POLITY_DEFINITIONS = [
 
     // 官商联盟
     {
-        name: '官商合流',
+        name: '管事通商',
         priority: 900,
-        description: '官员与商人相互勾连，以行政职权保护商业利益',
+        description: '管事与商户往来，以职务之便庇护买卖',
         icon: 'Handshake',
         color: 'text-yellow-600',
         conditions: {
@@ -674,9 +674,9 @@ export const POLITY_DEFINITIONS = [
 
     // 工匠-商人联盟（前工业时代）
     {
-        name: '行会商业共治',
+        name: '行商共事',
         priority: 900,
-        description: '工匠行会与商人阶层联合，以手工业和贸易为基础',
+        description: '工匠行会与商户联合，以手艺与通商为根基',
         icon: 'Anvil',
         color: 'text-amber-600',
         conditions: {
@@ -699,9 +699,9 @@ export const POLITY_DEFINITIONS = [
     // 必须 size >= 5
     // ============================================
     {
-        name: '全民联合共治',
+        name: '万众一心',
         priority: 850,
-        description: '跨越阶级的广泛联盟',
+        description: '跨越各界的广泛合伙',
         icon: 'Globe',
         color: 'text-green-400',
         conditions: {
@@ -716,9 +716,9 @@ export const POLITY_DEFINITIONS = [
         }
     },
     {
-        name: '民族团结共治',
+        name: '各行合力',
         priority: 840,
-        description: '各阶层联合共治',
+        description: '各群体联合主事',
         icon: 'Users',
         color: 'text-teal-400',
         conditions: {
@@ -732,9 +732,9 @@ export const POLITY_DEFINITIONS = [
         }
     },
     {
-        name: '人民阵线',
+        name: '平民合伙',
         priority: 830,
-        description: '以劳动阶层为主体的广泛联盟',
+        description: '以出力者为主体的广泛合伙',
         icon: 'Flag',
         color: 'text-red-500',
         conditions: {
@@ -751,9 +751,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '大联盟共治',
+        name: '各行合伙',
         priority: 800, // Fallback for Large Coalition
-        description: '多阶层联合共治',
+        description: '多个群体一起主事',
         icon: 'Users',
         color: 'text-blue-400',
         conditions: { minSize: 5 },
@@ -767,9 +767,9 @@ export const POLITY_DEFINITIONS = [
     // 4. 产业主导体制 (优先级 700)
     // ============================================
     {
-        name: '工业资本共治',
+        name: '工坊富户',
         priority: 700,
-        description: '工业资产阶级主导',
+        description: '工坊富户主导',
         icon: 'Factory',
         color: 'text-blue-500',
         conditions: {
@@ -788,9 +788,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '劳工联合共治',
+        name: '工匠合伙',
         priority: 700,
-        description: '工业劳动者联合共治',
+        description: '工坊出力者联合主事',
         icon: 'Hammer',
         color: 'text-orange-500',
         conditions: {
@@ -807,9 +807,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '地主-农民联盟',
+        name: '田庄农户',
         priority: 700,
-        description: '农村阶层联合共治',
+        description: '乡间群体联合主事',
         icon: 'Wheat',
         color: 'text-green-500',
         conditions: {
@@ -840,9 +840,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '农本共治',
+        name: '以农为本',
         priority: 690,
-        description: '农民阶层影响力占优',
+        description: '农户群体影响力占优',
         icon: 'Wheat',
         color: 'text-green-600',
         conditions: {
@@ -858,9 +858,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '商业共治',
+        name: '以商为本',
         priority: 700,
-        description: '商业阶层影响力占优',
+        description: '商户影响力占优',
         icon: 'Ship',
         color: 'text-teal-400',
         conditions: {
@@ -876,9 +876,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '技术精英共治',
+        name: '技艺共事',
         priority: 700,
-        description: '知识分子联合共治',
+        description: '读书人联合主事',
         icon: 'GraduationCap',
         color: 'text-cyan-400',
         conditions: {
@@ -896,9 +896,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '信息时代共治',
+        name: '新学共事',
         priority: 700,
-        description: '科学家主导的现代民主体制，以知识经济为核心',
+        description: '学者主导的新式共事，以学问为根基',
         icon: 'Cpu',
         color: 'text-violet-400',
         conditions: {
@@ -917,9 +917,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '技术工业国家',
+        name: '技工立本',
         priority: 700,
-        description: '技术工人主导的工业体制，以精密制造为国家支柱',
+        description: '技工主导的工坊格局，以精密制造为支柱',
         icon: 'Wrench',
         color: 'text-cyan-600',
         conditions: {
@@ -938,9 +938,9 @@ export const POLITY_DEFINITIONS = [
     },
     // ============================================
     {
-        name: '劳工共治',
+        name: '出力者合伙',
         priority: 600,
-        description: '劳动群体影响力占优',
+        description: '出力者影响力占优',
         icon: 'Hammer',
         color: 'text-red-500',
         conditions: {
@@ -957,9 +957,9 @@ export const POLITY_DEFINITIONS = [
         },
     },
     {
-        name: '精英联盟共治',
+        name: '上层合伙',
         priority: 600,
-        description: '上层阶层联合共治',
+        description: '上层联合主事',
         icon: 'Crown',
         color: 'text-amber-400',
         conditions: {
@@ -979,18 +979,18 @@ export const POLITY_DEFINITIONS = [
     // 6. 默认体制 (优先级 100)
     // ============================================
     {
-        name: '双头共治',
+        name: '两家共事',
         priority: 100,
-        description: '两个阶层联合共治',
+        description: '两家一起主事',
         icon: 'Scale',
         color: 'text-gray-400',
         conditions: { exactSize: 2 },
         effects: { stability: 0.03 }
     },
     {
-        name: '三方联盟',
+        name: '三家共事',
         priority: 100,
-        description: '三个阶层协同治理',
+        description: '三家一起主事',
         icon: 'Triangle',
         color: 'text-gray-400',
         conditions: { exactSize: 3 },
@@ -1001,18 +1001,18 @@ export const POLITY_DEFINITIONS = [
     // 0. 最终兜底 (优先级 0)
     // ============================================
     {
-        name: '联合共治',
+        name: '多家共事',
         priority: 0,
-        description: '多阶层联合共治',
+        description: '多个群体一起主事',
         icon: 'Users',
         color: 'text-gray-400',
         conditions: {},
         effects: { stability: 0.03 }
     },
     {
-        name: '无联盟',
+        name: '尚无班底',
         priority: -1, // Special handling in code if coalition is empty
-        description: '尚未建立联盟，缺乏社会基础',
+        description: '尚未结成班底，缺乏根基',
         icon: 'HelpCircle',
         color: 'text-gray-400',
         conditions: { maxSize: 0 },

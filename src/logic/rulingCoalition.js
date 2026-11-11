@@ -1,19 +1,19 @@
 /**
- * 联盟（Ruling Coalition）系统
- * 管理玩家与各阶层的联合执政关系
+ * 班底（Ruling Coalition）系统
+ * 管理玩家与各阶层的共同主事关系
  * 
  * 核心机制：
- * - 玩家选择与哪些阶层联合执政
- * - 联盟阶层影响力≥40%时为稳定治理
+ * - 玩家选择与哪些阶层共同主事
+ * - 班底阶层影响力≥40%时为稳定治理
  * - 权威影响征收效率
- * - 联盟阶层有更高的期望和更低的不满阈值
+ * - 班底阶层有更高的期望和更低的不满阈值
  */
 
 import { STRATA } from '../config/strata';
 
 // ============ 常量定义 ============
 
-// 权威阈值：联盟影响力占比需≥40%才为稳定治理
+// 权威阈值：班底影响力占比需≥40%才为稳定治理
 export const LEGITIMACY_THRESHOLD = 0.40;
 
 // 权威等级
@@ -24,7 +24,7 @@ export const LEGITIMACY_LEVEL = {
     ILLEGITIMATE: 'illegitimate', // <40%
 };
 
-// 联盟阶层的 ApprovalCap 惩罚（按生活水平等级）
+// 班底阶层的 ApprovalCap 惩罚（按生活水平等级）
 // 越穷的阶层期望改善生活的诉求越强烈，惩罚越重；越富则期望差距越小，惩罚越轻
 export const COALITION_APPROVAL_CAP_PENALTY = {
     '赤贫': 25,
@@ -35,22 +35,22 @@ export const COALITION_APPROVAL_CAP_PENALTY = {
     '奢华': 0,
 };
 
-// 联盟阶层敏感度配置
-// 联盟阶层对不满因素更敏感，组织度增长更快
+// 班底阶层敏感度配置
+// 班底阶层对不满因素更敏感，组织度增长更快
 export const COALITION_SENSITIVITY = {
-    // 税收负担阈值：普通50%，联盟20%（更低容忍度）
+    // 税收负担阈值：普通50%，班底20%（更低容忍度）
     TAX_THRESHOLD_NORMAL: 0.50,
     TAX_THRESHOLD_COALITION: 0.20,  // 0.25 -> 0.20
 
-    // 收入目标乘数：普通1.08，联盟1.50（更高预期）
+    // 收入目标乘数：普通1.08，班底1.50（更高预期）
     INCOME_MULTIPLIER_NORMAL: 1.08,
     INCOME_MULTIPLIER_COALITION: 1.50,  // 1.40 -> 1.50
 
-    // 基础短缺压力系数：普通0.6，联盟1.2
+    // 基础短缺压力系数：普通0.6，班底1.2
     BASIC_SHORTAGE_PRESSURE_NORMAL: 0.6,
     BASIC_SHORTAGE_PRESSURE_COALITION: 1.2,  // 0.9 -> 1.2
 
-    // 奢侈短缺压力系数：普通0.2，联盟0.5
+    // 奢侈短缺压力系数：普通0.2，班底0.5
     LUXURY_SHORTAGE_PRESSURE_NORMAL: 0.2,
     LUXURY_SHORTAGE_PRESSURE_COALITION: 0.5,  // 0.35 -> 0.5
 };
@@ -58,11 +58,11 @@ export const COALITION_SENSITIVITY = {
 // ============ 核心函数 ============
 
 /**
- * 计算联盟阶层的总影响力占比
- * @param {string[]} coalitionMembers - 联盟成员阶层键数组
+ * 计算班底阶层的总影响力占比
+ * @param {string[]} coalitionMembers - 班底成员阶层键数组
  * @param {Object} classInfluence - 各阶层影响力 { stratumKey: influenceValue }
  * @param {number} totalInfluence - 总影响力
- * @returns {number} 联盟影响力占比 (0-1)
+ * @returns {number} 班底影响力占比 (0-1)
  */
 export function calculateCoalitionInfluenceShare(coalitionMembers, classInfluence, totalInfluence) {
     if (!Array.isArray(coalitionMembers) || coalitionMembers.length === 0) {
@@ -81,13 +81,13 @@ export function calculateCoalitionInfluenceShare(coalitionMembers, classInfluenc
 }
 
 /**
- * 根据影响力占比和联盟满意度计算权威值
+ * 根据影响力占比和班底满意度计算权威值
  * 权威 = 影响力占比 × 100 × 满意度因子
- * 满意度因子：联盟成员平均满意度低于50时会降低权威
- * @param {number} influenceShare - 联盟影响力占比 (0-1)
+ * 满意度因子：班底成员平均满意度低于50时会降低权威
+ * @param {number} influenceShare - 班底影响力占比 (0-1)
  * @param {Object} options - 可选参数
  * @param {Object} options.classApproval - 各阶层满意度
- * @param {string[]} options.coalitionMembers - 联盟成员列表
+ * @param {string[]} options.coalitionMembers - 班底成员列表
  * @param {Object} options.classInfluence - 各阶层影响力（用于加权平均）
  * @returns {number} 权威值 (0-100)
  */
@@ -97,7 +97,7 @@ export function calculateLegitimacy(influenceShare, options = {}) {
     // 基础权威 = 影响力占比 × 100
     let baseLegitimacy = influenceShare * 100;
 
-    // 计算联盟成员的加权平均满意度
+    // 计算班底成员的加权平均满意度
     if (coalitionMembers.length > 0 && Object.keys(classApproval).length > 0) {
         let totalWeight = 0;
         let weightedApproval = 0;
@@ -211,9 +211,9 @@ export function getLegitimacyApprovalModifier(legitimacy) {
 }
 
 /**
- * 检查阶层是否为联盟成员
+ * 检查阶层是否为班底成员
  * @param {string} stratumKey - 阶层键
- * @param {string[]} coalitionMembers - 联盟成员列表
+ * @param {string[]} coalitionMembers - 班底成员列表
  * @returns {boolean}
  */
 export function isCoalitionMember(stratumKey, coalitionMembers) {
@@ -221,9 +221,9 @@ export function isCoalitionMember(stratumKey, coalitionMembers) {
 }
 
 /**
- * 获取联盟阶层的 ApprovalCap 惩罚值
+ * 获取班底阶层的 ApprovalCap 惩罚值
  * @param {string} livingStandardLevel - 生活水平等级名称
- * @param {boolean} isCoalition - 是否为联盟成员
+ * @param {boolean} isCoalition - 是否为班底成员
  * @returns {number} 惩罚值（从原始approvalCap中减去）
  */
 export function getCoalitionApprovalCapPenalty(livingStandardLevel, isCoalition) {
@@ -232,8 +232,8 @@ export function getCoalitionApprovalCapPenalty(livingStandardLevel, isCoalition)
 }
 
 /**
- * 获取联盟阶层的敏感度配置
- * @param {boolean} isCoalition - 是否为联盟成员
+ * 获取班底阶层的敏感度配置
+ * @param {boolean} isCoalition - 是否为班底成员
  * @returns {Object} 敏感度配置
  */
 export function getCoalitionSensitivity(isCoalition) {
@@ -254,7 +254,7 @@ export function getCoalitionSensitivity(isCoalition) {
 }
 
 /**
- * 获取可选为联盟成员的阶层列表
+ * 获取可选为班底成员的阶层列表
  * （排除失业者、奴隶等不能参与政治的阶层）
  * @param {Object} popStructure - 人口结构
  * @returns {string[]} 可选阶层键数组
@@ -272,24 +272,24 @@ export function getEligibleCoalitionStrata(popStructure = {}) {
 }
 
 /**
- * 获取权威对非联盟阶层组织度增长的修正系数
- * 高权威 -> 非联盟阶层组织度增长缓慢
+ * 获取权威对班底外群体组织度增长的修正系数
+ * 高权威 -> 班底外群体组织度增长缓慢
  * 低权威/非法 -> 组织度增长更快
- * 联盟成员有额外增长加成
+ * 班底成员有额外增长加成
  * @param {number} legitimacy - 权威值 (0-100)
- * @param {boolean} isCoalitionMember - 是否为联盟成员
+ * @param {boolean} isCoalitionMember - 是否为班底成员
  * @returns {number} 组织度增长速度乘数
  */
 export function getLegitimacyOrganizationModifier(legitimacy, isCoalitionMember) {
-    // 联盟成员有额外的组织度增长加成（他们的期望更高，更容易不满）
+    // 班底成员有额外的组织度增长加成（他们的期望更高，更容易不满）
     if (isCoalitionMember) {
-        return 1.5;  // 联盟成员：组织度增长速度 +50%
+        return 1.5;  // 班底成员：组织度增长速度 +50%
     }
 
     const level = getLegitimacyLevel(legitimacy);
     switch (level) {
         case LEGITIMACY_LEVEL.HIGH:
-            return 0.3;  // 高权威：非联盟阶层组织度增长速度降至30%
+            return 0.3;  // 高权威：班底外群体组织度增长速度降至30%
         case LEGITIMACY_LEVEL.MEDIUM:
             return 0.6;  // 中权威：降至60%
         case LEGITIMACY_LEVEL.LOW:
@@ -306,9 +306,9 @@ export function getLegitimacyOrganizationModifier(legitimacy, isCoalitionMember)
 export const STRATA_CATEGORIES = {
     // 传统贵族/精英阶层
     aristocracy: ['landowner', 'official'],
-    // 资产阶级
+    // 富户群体
     bourgeoisie: ['capitalist', 'merchant', 'engineer'],
-    // 工农阶级
+    // 农工群体
     proletariat: ['worker', 'miner', 'peasant', 'serf', 'lumberjack', 'technician'],
     // 军事阶层
     military: ['soldier'],
@@ -327,15 +327,15 @@ export const STRATA_CATEGORIES = {
 // 阶层分组，用于UI显示
 export const STRATA_GROUPS = {
     upper: {
-        name: '上流阶级',
+        name: '上层',
         keys: ['merchant', 'official', 'landowner', 'capitalist', 'engineer', 'scientist'],
     },
     middle: {
-        name: '中产阶级',
+        name: '中层',
         keys: ['artisan', 'soldier', 'cleric', 'scribe', 'navigator', 'technician'],
     },
     lower: {
-        name: '下层阶级',
+        name: '下层',
         keys: ['peasant', 'serf', 'lumberjack', 'worker', 'miner'],
     },
 };
@@ -344,22 +344,22 @@ import { POLITY_DEFINITIONS } from '../config/polityEffects';
 
 /**
  * 获取体制描述词
- * @param {string[]} coalition - 联盟成员阶层键数组
+ * @param {string[]} coalition - 班底成员阶层键数组
  * @param {Object} classInfluence - 各阶层影响力
  * @param {number} totalInfluence - 总影响力
  * @returns {Object} { name: 体制名称, description: 描述, icon: 图标, color: 颜色 }
  */
 export function getGovernmentType(coalition, classInfluence, totalInfluence) {
     if (!Array.isArray(coalition) || coalition.length === 0) {
-        return getPolityByName('无联盟') || {
-            name: '无联盟',
-            description: '尚未建立联盟，缺乏社会基础',
+        return getPolityByName('尚无班底') || {
+            name: '尚无班底',
+            description: '尚未结成班底，缺乏根基',
             icon: 'HelpCircle',
             color: 'text-gray-400',
         };
     }
 
-    // 计算联盟总影响力
+    // 计算班底总影响力
     let coalitionTotalInfluence = 0;
     coalition.forEach(key => {
         coalitionTotalInfluence += classInfluence[key] || 0;
@@ -402,7 +402,7 @@ export function getGovernmentType(coalition, classInfluence, totalInfluence) {
         // 2. 精确成员检查
         if (cond.exactCoalition) {
             if (memberCount !== cond.exactCoalition.length) return false;
-            // 必须每个要求的成员都在联盟中
+            // 必须每个要求的成员都在班底中
             if (!cond.exactCoalition.every(k => coalition.includes(k))) return false;
         }
 
@@ -452,7 +452,7 @@ export function getGovernmentType(coalition, classInfluence, totalInfluence) {
         return matches[0];
     }
 
-    return { name: '联合共治', description: '多阶层联合共治', icon: 'Users', color: 'text-gray-400' };
+    return { name: '多家共事', description: '多个群体一起主事', icon: 'Users', color: 'text-gray-400' };
 }
 
 // 辅助：按名称获取定义（用于Fallback）

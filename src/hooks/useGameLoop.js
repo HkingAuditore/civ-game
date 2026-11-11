@@ -2620,7 +2620,7 @@ difficulty, // 游戏难度
                     });
                 }
 
-                // ========== 官僚政变检测（基于忠诚度系统） ==========
+                // ========== 官僚变乱检测（基于忠诚度系统） ==========
                 let coupOutcome = null;
                 const officialsList = result.officials || [];
                 if (officialsList.length > 0 && current.actions?.triggerDiplomaticEvent) {
@@ -2682,9 +2682,9 @@ difficulty, // 游戏难度
                             if (!targetId) {
                                 console.error('[COUP BUG] Target official has no ID:', target.official);
                             }
-                            // [FIX] 防止同一官员在状态更新前重复触发政变（多tick竞态）
+                            // [FIX] 防止同一官员在状态更新前重复触发变乱（多tick竞态）
                             if (coupTriggeredOfficialIds.current.has(targetId)) {
-                                // 该官员已触发政变，跳过
+                                // 该官员已触发变乱，跳过
                             } else {
                                 coupTriggeredOfficialIds.current.set(targetId, current.daysElapsed || 0);
                                 // [PERF] Tick-based cleanup: remove entries older than 180 ticks (~half a year)
@@ -2699,7 +2699,7 @@ difficulty, // 游戏难度
                                 }
                             const newOfficials = officialsList.filter(o => o && o.id && o.id !== targetId);
                             // [BUG FIX] simulation 仅在建筑发生变动时才返回 result.buildings，否则为 null（性能优化）。
-                            //   政变多半发生在没有建筑变动的 tick，若此处用 result.buildings(=null) 会得到空对象 {}，
+                            //   变乱多半发生在没有建筑变动的 tick，若此处用 result.buildings(=null) 会得到空对象 {}，
                             //   随后写回 setBuildings 时会把玩家所有建筑清空（表现为"官员叛乱后建筑全部消失"）。
                             //   回退到本 tick 喂给 simulation 的 mergedBuildings（含 pending 增量）作为权威建筑状态。
                             const newBuildings = { ...(result.buildings || mergedBuildings || current.buildings || {}) };
@@ -2820,7 +2820,7 @@ difficulty, // 游戏难度
                                 event: coupEvent,
                             };
 
-                            addLog('[官僚政变] ' + target.official.name + ' 携资叛逃，成立了 ' + rebelNation.name + '。');
+                            addLog('[官僚变乱] ' + target.official.name + ' 携资叛逃，成立了 ' + rebelNation.name + '。');
                             } // end else (not already triggered)
                         }
                     }

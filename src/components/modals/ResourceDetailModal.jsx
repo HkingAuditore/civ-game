@@ -1314,7 +1314,7 @@ const ResourceDetailContent = ({
             const baseAmount = perBuilding * count;
             baseDemandTotal += baseAmount;
 
-            // 获取建筑原料消耗修正（官员效果 + 施政立场效果）
+            // 获取建筑原料消耗修正（官员效果 + 做事主张效果）
             const inputCostMod = sources.productionInputCost?.[building.id] || 0;
             const inputCostMultiplier = 1 + inputCostMod;
             const safeInputMultiplier = Math.max(0.2, inputCostMultiplier);
@@ -1329,7 +1329,7 @@ const ResourceDetailContent = ({
             const modList = [];
             if (inputCostMod !== 0) {
                 const sign = inputCostMod > 0 ? '+' : '';
-                modList.push(`官员/立场 ${sign}${(inputCostMod * 100).toFixed(0)}%`);
+                modList.push(`官员/主张 ${sign}${(inputCostMod * 100).toFixed(0)}%`);
             }
 
             acc.push({

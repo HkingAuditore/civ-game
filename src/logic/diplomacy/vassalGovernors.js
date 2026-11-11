@@ -13,7 +13,7 @@ import { INDEPENDENCE_CONFIG } from '../../config/diplomacy.js';
 import { getNationGDP } from './economyUtils.js';
 
 /**
- * 总督施政纲领 (Governor Mandates)
+ * 总督任期目标 (Governor Mandates)
  * 决定总督治理的侧重点，并修正属性收益
  */
 export const GOVERNOR_MANDATES = {

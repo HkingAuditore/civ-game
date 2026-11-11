@@ -465,13 +465,13 @@ export function calculateLuxuryConsumptionMultiplier({
 /**
  * 计算解锁乘数（用于奢侈需求解锁判断）
  * 与 calculateWealthMultiplier 区别：不受阶层消费上限限制，弹性系数影响更小
- * 这样即使底层阶级消费能力被限制，只要财富足够也能解锁奢侈需求
+ * 这样即使下层消费能力被限制，只要财富足够也能解锁奢侈需求
  * 
  * 2024-12更新：解锁能力主要取决于财富，弹性系数影响减半
  * @param {number} incomeRatio - 收入比率（人均收入 / 基础成本）
  * @param {number} wealthRatio - 财富比率（人均财富 / 基准财富）
  * @param {number} wealthElasticity - 财富弹性系数（0.3=底层, 1.0=基准, 1.8=顶层）
- * @returns {number} 解锁乘数（无阶级上限限制）
+ * @returns {number} 解锁乘数（无群体上限限制）
  */
 export function calculateUnlockMultiplier(incomeRatio, wealthRatio = 1, wealthElasticity = 1.0, livingStandardLevel = null) {
     // 强制要求：仅当收入能满足基础生存需求(incomeRatio >= 1) 或拥有一定积蓄(wealthRatio >= 2)时，才允许解锁奢侈需求

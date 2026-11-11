@@ -1523,7 +1523,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                             <div className="space-y-1">
                                                 <div className="text-xs text-gray-400 flex items-center gap-1">
                                                     <Icon name="Scroll" size={10} />
-                                                    施政纲领
+                                                    任期目标
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-1">
                                                     {Object.entries(GOVERNOR_MANDATES).map(([mandateId, mandate]) => (

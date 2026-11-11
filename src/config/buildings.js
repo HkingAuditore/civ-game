@@ -158,7 +158,7 @@ export const BUILDINGS = [
     {
         id: 'culinary_kitchen',
         name: "烹饪坊",
-        desc: "将粮食烹饪为珍馐，供上层阶级享用。",
+        desc: "将粮食烹饪为珍馐，供上层享用。",
         baseCost: { wood: 100, stone: 60, brick: 30 },
         input: { tools: 0.1666, food: 2.5 },
         output: { delicacies: 2.5 },
@@ -193,7 +193,7 @@ export const BUILDINGS = [
     {
         id: 'furniture_workshop',
         name: "家具工坊",
-        desc: "将木板与布料雕刻成精美家具，提升上层阶级的生活品质。",
+        desc: "将木板与布料雕刻成精美家具，提升上层的生活品质。",
         baseCost: { plank: 120, stone: 80 },
         input: { tools: 0.2, plank: 1.9999, cloth: 0.6 },
         output: { furniture: 2.4 },
@@ -256,7 +256,7 @@ export const BUILDINGS = [
     {
         id: 'tailor_workshop',
         name: "成衣作坊",
-        desc: "使用布料和染料制作精美的华服，供上层阶级享用。",
+        desc: "使用布料和染料制作精美的华服，供上层享用。",
         baseCost: { wood: 100, stone: 40 },
         input: { tools: 0.1, cloth: 2.5, dye: 0.5 },
         output: { fine_clothes: 2, culture: 0.8333 },
@@ -399,7 +399,7 @@ export const BUILDINGS = [
     {
         id: 'civic_apartment',
         name: "阁楼公馆",
-        desc: "启蒙时代流行的多层砖石建筑，优雅的阁楼设计为新兴中产阶级提供舒适居所。",
+        desc: "启蒙时代流行的多层砖石建筑，优雅的阁楼设计为新兴中层提供舒适居所。",
         baseCost: { brick: 250, plank: 150, iron: 40, furniture: 20 },
         output: { maxPop: 11 },
         epoch: 5,
@@ -1092,7 +1092,7 @@ export const BUILDINGS = [
     {
         id: 'furniture_factory',
         name: "家具工厂",
-        desc: "流水线生产标准化家具，满足城市中产阶级需求。",
+        desc: "流水线生产标准化家具，满足城市中层需求。",
         baseCost: { brick: 280, steel: 120, tools: 80, science: 280 },
         input: { plank: 7.50, cloth: 2.40, coal: 0.75 },
         output: { furniture: 10.50, culture: 0.60 }, // 人均 0.808 (>大家具坊Lv2 0.72), 减少worker

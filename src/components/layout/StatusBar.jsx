@@ -499,7 +499,7 @@ export const StatusBar = React.memo(({
                                 }
                             }}
                             className="relative group flex items-center glass-ancient px-1.5 py-1 rounded-lg border border-ancient-gold/15 hover:border-ancient-gold/40 hover:shadow-glow-gold transition-all touch-feedback"
-                            title="历年施政报告"
+                            title="历年经营报告"
                         >
                             <Icon name="ScrollText" size={13} className="text-ancient-gold/70 group-hover:text-ancient-gold transition-colors" />
                         </button>

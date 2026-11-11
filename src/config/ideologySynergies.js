@@ -15,9 +15,9 @@ export const IDEOLOGY_SYNERGIES = [
     },
     {
         id: 'holy_war',
-        name: '圣战',
+        name: '守卫信念',
         required: ['monotheism', 'militarism'],
-        desc: '以信仰之名征战四方，战士们坚信神明在注视着他们。',
+        desc: '以誓约之名征战四方，众人坚信先祖在注视着他们。',
         effects: { militaryBonus: 0.25, stability: 10, cultureBonus: -0.10 },
         mechanicEffect: { type: 'crisis_immunity', immuneTo: 'on_stability_crisis' },
     },
@@ -30,7 +30,7 @@ export const IDEOLOGY_SYNERGIES = [
     },
     {
         id: 'iron_and_blood',
-        name: '铁血政策',
+        name: '铁血同盟',
         required: ['militarism', 'absolute_idealism'],
         desc: '意志与力量的结合，不以演说和多数决定时代的重大问题。',
         effects: { militaryBonus: 0.15, scienceBonus: 0.10, stability: -5 },
@@ -45,24 +45,24 @@ export const IDEOLOGY_SYNERGIES = [
     },
     {
         id: 'total_mobilization',
-        name: '全面动员',
+        name: '全员动员',
         required: ['levee_en_masse', 'militarism'],
-        desc: '全民族投入战争洪流，和平时期的一切都是战争准备。',
+        desc: '全力以赴投入战事，平日的一切都是战备。',
         effects: { militaryBonus: 0.10, maxPop: -0.03, production: -0.05 },
         mechanicEffect: { type: 'auto_build', buildingId: 'barracks', intervalDays: 120 },
     },
     {
         id: 'theocracy',
-        name: '政教合一',
+        name: '香火与王冠',
         required: ['monotheism', 'divine_right'],
-        desc: '宗教与王权合而为一，信仰即法律，神意即君命。',
+        desc: '香火与冠冕合而为一，信条即规矩，神意即主命。',
         effects: { stability: 15, cultureBonus: 0.05, scienceBonus: -0.10 },
     },
     {
         id: 'peoples_republic',
-        name: '人民共和',
+        name: '众人商议',
         required: ['republicanism', 'egalitarianism'],
-        desc: '权力属于人民，法律面前人人平等。',
+        desc: '权柄归于众人，规矩面前人人平等。',
         effects: { stability: 12, maxPop: 0.08, categories: { civic: 0.10 }, taxIncome: -0.05, militaryBonus: -0.03 },
     },
     {
@@ -98,30 +98,30 @@ export const IDEOLOGY_SYNERGIES = [
     // ============ 扩充联动 ============
     {
         id: 'confucian_bureaucracy',
-        name: '科举治国',
+        name: '选贤共治',
         required: ['confucianism', 'meritocracy'],
         desc: '儒家德行与贤能选拔的结合，打造高效清廉的文官体系。',
         effects: { categories: { civic: 0.12 }, scienceBonus: 0.08, stability: 10, militaryBonus: -0.05 },
     },
     {
         id: 'spirit_of_capitalism',
-        name: '资本主义精神',
+        name: '商人精神',
         required: ['individualism', 'laissez_faire'],
         desc: '个人自由与市场经济的完美结合，财富创造的黄金法则。',
         effects: { taxIncome: 0.15, production: 0.10, stability: -8, maxPop: 0.03 },
     },
     {
         id: 'workers_revolution',
-        name: '工人革命',
+        name: '工匠奋起',
         required: ['labor_movement', 'communism'],
-        desc: '无产者联合起来，推翻旧世界，建设新社会。',
+        desc: '出力者联合起来，另起一番局面，重立规矩。',
         effects: { production: 0.15, maxPop: 0.10, stability: -10, taxIncome: -0.10 },
     },
     {
         id: 'manifest_destiny',
-        name: '天定命运',
+        name: '使命召唤',
         required: ['nationalism', 'imperialism'],
-        desc: '民族使命与扩张野心的融合，不可阻挡的历史洪流。',
+        desc: '故土使命与扩张野心的融合，不可阻挡的洪流。',
         effects: { militaryBonus: 0.18, taxIncome: 0.08, stability: -5 },
     },
     {
@@ -155,9 +155,9 @@ export const IDEOLOGY_SYNERGIES = [
     // ============ V2: 18组新增正向联动 ============
     {
         id: 'crusade',
-        name: '十字军东征',
+        name: '远征',
         required: ['jihad_doctrine', 'chivalry'],
-        desc: '以信仰之名骑士出征，圣战与骑士道在十字军旗下合为一体。',
+        desc: '以誓约之名骑士出征，卫道与骑士之风合为一体。',
         effects: { militaryBonus: 0.15, cultureBonus: 0.08 },
         mechanicEffect: { type: 'unit_attack_mod', scope: 'cavalry', value: 0.10 },
     },
@@ -171,7 +171,7 @@ export const IDEOLOGY_SYNERGIES = [
     },
     {
         id: 'magna_carta',
-        name: '大宪章',
+        name: '约法',
         required: ['federalism', 'social_contract_ideology'],
         desc: '联邦自治与契约精神的交汇，催生了限制王权的大宪章。',
         effects: { stability: 12 },
@@ -193,14 +193,14 @@ export const IDEOLOGY_SYNERGIES = [
     },
     {
         id: 'iron_curtain',
-        name: '铁幕',
+        name: '壁垒',
         required: ['planned_economy', 'totalitarianism'],
-        desc: '计划经济与极权控制的铁幕落下，高效但封闭。',
+        desc: '统配调度与铁腕掌控的壁垒落下，高效但封闭。',
         effects: { industryBonus: 0.18, militaryBonus: 0.10 },
     },
     {
         id: 'welfare_capitalism',
-        name: '福利资本主义',
+        name: '福利互助',
         required: ['finance_capitalism', 'welfare_state'],
         desc: '金融资本与社会福利的妥协，在增长与公平间寻求平衡。',
         effects: { taxIncome: 0.10, stability: 8 },
@@ -231,7 +231,7 @@ export const IDEOLOGY_SYNERGIES = [
     },
     {
         id: 'peoples_mobilization',
-        name: '全民动员',
+        name: '全村动员',
         required: ['peoples_war', 'cooperative_movement'],
         desc: '人民战争与合作社运动的结合，全民皆兵全民生产。',
         effects: { militaryBonus: 0.10, production: 0.08, stability: 5 },
@@ -335,7 +335,7 @@ export const ANTI_SYNERGIES = [
     },
     {
         id: 'feudal_republic_clash',
-        name: '封建与共和之争',
+        name: '分封与共商之争',
         required: ['feudalism_ideology', 'republicanism'],
         desc: '封建领主的世袭特权与共和制的公民平等理念根本对立。',
         effects: { stability: -10, categories: { civic: -0.08 } },
@@ -344,7 +344,7 @@ export const ANTI_SYNERGIES = [
         id: 'legalism_anarchism_clash',
         name: '法治与无治之争',
         required: ['legalism', 'anarchism'],
-        desc: '法家的严刑峻法与无政府主义的废除一切权威产生极端矛盾。',
+        desc: '法家的严刑峻法与不受约束、否定一切规矩的做法产生极端矛盾。',
         effects: { stability: -12, production: -0.05 },
     },
     {
@@ -358,7 +358,7 @@ export const ANTI_SYNERGIES = [
         id: 'imperialism_pacifism_clash',
         name: '帝国扩张与和平理想之争',
         required: ['imperialism', 'pacifism'],
-        desc: '帝国主义的扩张野心与和平主义的反战信念产生不可调和的矛盾。',
+        desc: '向外扩张的野心与和平主义的反战信念难以调和。',
         effects: { stability: -8, militaryBonus: -0.05, cultureBonus: -0.05 },
     },
     {
@@ -378,7 +378,7 @@ export const ANTI_SYNERGIES = [
     // ============ V2: 10组新增反向联动 ============
     {
         id: 'liberty_plan_clash',
-        name: '自由与计划之争',
+        name: '放任与统配之争',
         required: ['laissez_faire', 'planned_economy'],
         desc: '自由放任的市场与国家计划的经济势如水火。',
         effects: { industryBonus: -0.08, stability: -5 },
@@ -399,9 +399,9 @@ export const ANTI_SYNERGIES = [
     },
     {
         id: 'central_federal_clash',
-        name: '集权与联邦之争',
+        name: '集中与分权之争',
         required: ['totalitarianism', 'federalism'],
-        desc: '极权集中与联邦分权是治理理念上的根本矛盾。',
+        desc: '铁腕集中与分权共治是根本上的矛盾。',
         effects: { stability: -8, taxIncome: -0.05 },
     },
     {
@@ -413,7 +413,7 @@ export const ANTI_SYNERGIES = [
     },
     {
         id: 'segregation_equality_clash',
-        name: '隔离与平等之争',
+        name: '划界与平等之争',
         required: ['apartheid', 'egalitarianism'],
         desc: '种族隔离与平等主义是人类最深刻的道德分歧。',
         effects: { stability: -10, cultureBonus: -0.08 },
@@ -436,14 +436,14 @@ export const ANTI_SYNERGIES = [
         id: 'philosopher_tyrant_clash',
         name: '哲人与暴君之争',
         required: ['philosopher_king', 'totalitarianism'],
-        desc: '哲人王的理性治理与极权暴政在统治哲学上势同水火。',
+        desc: '哲人王的理性治理与铁腕暴政势同水火。',
         effects: { scienceBonus: -0.08, stability: -5 },
     },
     {
         id: 'explore_isolate_clash',
         name: '探索与孤立之争',
         required: ['cartography', 'planned_economy'],
-        desc: '制图学的全球视野与计划经济的封闭体系相互矛盾。',
+        desc: '制图学的全球视野与统配调度的封闭体系相互矛盾。',
         effects: { scienceBonus: -0.05, taxIncome: -0.05 },
     },
 ];

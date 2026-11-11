@@ -2050,7 +2050,7 @@ export const useGameState = () => {
         decrees: [],
         activeDecrees: {},           // 当前生效的临时法令
         decreeCooldowns: {},       // 法令冷却时间
-        quotaTargets: {},             // 计划经济阶层配额目标
+        quotaTargets: {},             // 统筹调配群体配额目标
         expansionSettings: {},   // 自由市场建筑扩张设置
         priceControls: {
             enabled: false,

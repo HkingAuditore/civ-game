@@ -2,6 +2,7 @@ import React, { memo, useState } from 'react';
 import { Icon } from '../../common/UIComponents';
 import { STRATA, BUILDINGS } from '../../../config';
 import { POLITICAL_STANCES, POLITICAL_ISSUES } from '../../../config/politicalStances';
+import { COMPLIANCE_FLAGS } from '../../../config/complianceFlags';
 import { PROPERTY_POLICY_CONFIG } from '../../../config/officials';
 import { formatNumberShortCN } from '../../../utils/numberFormat';
 import { calculatePrestige, getPrestigeLevel, DISPOSAL_TYPES } from '../../../logic/officials/manager';
@@ -70,7 +71,7 @@ const formatEffectValue = (type, value, target) => {
     }
 };
 
-// 效果名称映射（施政立场效果专用）
+// 效果名称映射（做事主张效果专用）
 const EFFECT_NAMES = {
     stability: '稳定度',
     legitimacyBonus: '权威',
@@ -102,7 +103,7 @@ const OfficialCardInner = ({
     canAfford = true,
     actionDisabled = false,
     currentDay = 0,
-    isStanceSatisfied = null, // 新增：施政主张是否满足 (null=不检查, true=满足, false=不满足)
+    isStanceSatisfied = null, // 新增：做事主张是否满足 (null=不检查, true=满足, false=不满足)
     onViewDetail,
     compact = false,
     generals = [], // Generals list for checking if official is leading a corps
@@ -127,7 +128,7 @@ const OfficialCardInner = ({
     const stratumIcon = stratumDef?.icon || 'User';
     const salary = official.salary || 0;
 
-    // 施政立场（兼容字符串或对象）
+    // 做事主张（兼容字符串或对象）
     const stanceId = typeof official.politicalStance === 'string'
         ? official.politicalStance
         : official.politicalStance?.stanceId;
@@ -141,14 +142,14 @@ const OfficialCardInner = ({
         ? official.stanceUnsatisfiedPenalty
         : stance?.failureEffects;
 
-    // 立场光谱完整配置（颜色、图标、边框、标签）
+    // 性情底色完整配置（颜色、图标、边框、标签）
     const spectrumConfig = {
         left: {
             bg: 'bg-red-900/30',
             border: 'border-red-500/60',
             text: 'text-red-300',
             icon: 'Users',
-            label: '左派',
+            label: '普惠',
             gradient: 'from-red-600/30 to-red-900/10',
             glow: 'shadow-red-500/20',
         },
@@ -157,7 +158,7 @@ const OfficialCardInner = ({
             border: 'border-blue-500/60',
             text: 'text-blue-300',
             icon: 'Scale',
-            label: '建制派',
+            label: '稳健',
             gradient: 'from-blue-600/30 to-blue-900/10',
             glow: 'shadow-blue-500/20',
         },
@@ -166,7 +167,7 @@ const OfficialCardInner = ({
             border: 'border-amber-500/60',
             text: 'text-amber-300',
             icon: 'TrendingUp',
-            label: '右派',
+            label: '进取',
             gradient: 'from-amber-600/30 to-amber-900/10',
             glow: 'shadow-amber-500/20',
         },
@@ -299,7 +300,7 @@ const OfficialCardInner = ({
         return lines;
     };
 
-    // 渲染立场效果（汉化版）
+    // 渲染主张效果（汉化版）
     const renderStanceEffects = (effects, isActive) => {
         if (!effects || Object.keys(effects).length === 0) return null;
 
@@ -344,7 +345,7 @@ const OfficialCardInner = ({
                     if (onViewDetail) onViewDetail(official);
                 }}
             >
-                {/* 第一行：姓名 + 等级 + 派系 + 政策标签 */}
+                {/* 第一行：姓名 + 等级 + 班底 + 政策标签 */}
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 min-w-0">
                         {level > 1 && (
@@ -360,7 +361,7 @@ const OfficialCardInner = ({
                         )}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                        {/* 派系标签 */}
+                        {/* 班底标签 */}
                         <span className={`inline-flex items-center gap-0.5 px-1 py-px rounded text-xs font-medium ${stanceColors.bg} ${stanceColors.text} border ${stanceColors.border}`}>
                             <Icon name={stanceColors.icon} size={8} />
                             {stanceColors.label}
@@ -379,7 +380,7 @@ const OfficialCardInner = ({
                     </div>
                 </div>
 
-                {/* 第二行：出身 + 威望 + 财务状态 + 施政主张触发状态 */}
+                {/* 第二行：出身 + 威望 + 财务状态 + 做事主张触发状态 */}
                 <div className="mt-1 flex items-center flex-wrap gap-1 text-xs">
                     <span className={`${stratumColor} opacity-80`}>{stratumDef?.name || stratumKey}出身</span>
                     {prestigeInfo && <span className={`${prestigeInfo.color}`}>· {prestigeInfo.name}</span>}
@@ -393,7 +394,7 @@ const OfficialCardInner = ({
                             <Icon name="Flame" size={8} className="inline" /> {official.ambition}
                         </span>
                     )}
-                    {/* 施政主张触发状态标签 */}
+                    {/* 做事主张触发状态标签 */}
                     {stance && !isCandidate && (
                         <span
                             className={`inline-flex items-center gap-0.5 px-1 py-px rounded text-xs font-medium border ${
@@ -547,10 +548,12 @@ const OfficialCardInner = ({
                 if (!isCandidate && onViewDetail) onViewDetail(official);
             }}
         >
-            {/* 顶部立场光谱渐变条 */}
-            <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${stanceColors.gradient}`} />
+            {/* 顶部性情底色渐变条 */}
+            {!COMPLIANCE_FLAGS.hideOfficialStance && (
+                <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${stanceColors.gradient}`} />
+            )}
 
-            {/* 头部: 姓名, 阶层, 薪俸 + 立场光谱标签 */}
+            {/* 头部: 姓名, 阶层, 薪俸 + 性情底色标签 */}
             <div className="flex justify-between items-start mb-2 pt-1 gap-2">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                     <div className={`p-1.5 rounded bg-gray-900/50 ${stratumColor} flex-shrink-0`}>
@@ -568,23 +571,27 @@ const OfficialCardInner = ({
                             )}
                         </div>
                         <div className={`text-xs ${stratumColor} opacity-80 flex items-center flex-wrap gap-1.5 mt-0.5`}>
-                            {/* 立场光谱小标签 (移至第二行以防重叠) */}
-                            <span className={`inline-flex items-center gap-0.5 px-1 py-px rounded text-xs font-medium ${stanceColors.bg} ${stanceColors.text} border ${stanceColors.border} flex-shrink-0`}>
-                                <Icon name={stanceColors.icon} size={8} />
-                                {stanceColors.label}
-                            </span>
-                            {stance?.name && (
-                                <span className="text-xs text-gray-300 font-bold ml-1 truncate max-w-[80px] inline-flex items-center gap-0.5" title={stance.description}>
-                                    {stance.name}
-                                    {isStanceSatisfied !== null && !isCandidate && (
-                                        <Icon 
-                                            name={isStanceSatisfied ? 'Check' : 'X'} 
-                                            size={8} 
-                                            className={isStanceSatisfied ? 'text-green-400' : 'text-red-400'}
-                                            title={isStanceSatisfied ? '施政主张已满足' : '施政主张未满足'}
-                                        />
+                            {/* 性情底色小标签 (移至第二行以防重叠) */}
+                            {!COMPLIANCE_FLAGS.hideOfficialStance && (
+                                <>
+                                    <span className={`inline-flex items-center gap-0.5 px-1 py-px rounded text-xs font-medium ${stanceColors.bg} ${stanceColors.text} border ${stanceColors.border} flex-shrink-0`}>
+                                        <Icon name={stanceColors.icon} size={8} />
+                                        {stanceColors.label}
+                                    </span>
+                                    {stance?.name && (
+                                        <span className="text-xs text-gray-300 font-bold ml-1 truncate max-w-[80px] inline-flex items-center gap-0.5" title={stance.description}>
+                                            {stance.name}
+                                            {isStanceSatisfied !== null && !isCandidate && (
+                                                <Icon
+                                                    name={isStanceSatisfied ? 'Check' : 'X'}
+                                                    size={8}
+                                                    className={isStanceSatisfied ? 'text-green-400' : 'text-red-400'}
+                                                    title={isStanceSatisfied ? '做事主张已满足' : '做事主张未满足'}
+                                                />
+                                            )}
+                                        </span>
                                     )}
-                                </span>
+                                </>
                             )}
                             <span className="truncate">{stratumDef?.name || stratumKey} 出身</span>
                             {prestigeInfo && <span className={`flex-shrink-0 ${prestigeInfo.color}`}>· {prestigeInfo.name}</span>}
@@ -700,9 +707,9 @@ const OfficialCardInner = ({
             </div>
 
             {/* 左右两栏布局 */}
-            <div className="grid grid-cols-2 gap-2 min-h-[80px]">
+            <div className={`grid ${COMPLIANCE_FLAGS.hideOfficialStance ? 'grid-cols-1' : 'grid-cols-2'} gap-2 min-h-[80px]`}>
                 {/* 左栏: 官员效果 */}
-                <div className="border-r border-gray-700/30 pr-2">
+                <div className={COMPLIANCE_FLAGS.hideOfficialStance ? '' : 'border-r border-gray-700/30 pr-2'}>
                     <div className="text-xs text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1">
                         <Icon name="Zap" size={10} />
                         官员能力
@@ -720,20 +727,20 @@ const OfficialCardInner = ({
                     </div>
                 </div>
 
-                {/* 右栏: 施政立场 */}
-                <div className="pl-1">
+                {/* 右栏: 做事主张 */}
+                <div className={`pl-1 ${COMPLIANCE_FLAGS.hideOfficialStance ? 'hidden' : ''}`}>
                     {stance ? (
                         <>
                             <div className="text-xs text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1">
                                 <Icon name="Flag" size={10} />
-                                施政立场
+                                做事主张
                             </div>
-                            {/* 立场名称 */}
+                            {/* 主张名称 */}
                             <div className={`flex items-center gap-1 mb-0.5 ${stanceColors.text}`}>
                                 <Icon name={stance.icon || 'Flag'} size={12} />
                                 <span className="text-xs font-semibold">{stance.name}</span>
                             </div>
-                            {/* 施政议题 */}
+                            {/* 在意的事 */}
                             {stance.issues && stance.issues.length > 0 && (
                                 <div className="text-xs text-gray-500 mb-1 flex flex-wrap gap-1">
                                     {stance.issues.slice(0, 3).map(issueId => {
@@ -748,7 +755,7 @@ const OfficialCardInner = ({
                             )}
                             {/* 触发条件 - 简化显示 */}
                             <div className="mb-1">
-                                <span className="text-xs text-gray-500">施政主张:</span>
+                                <span className="text-xs text-gray-500">满足条件:</span>
                                 <div className="text-xs text-gray-300 bg-gray-800/30 p-1.5 rounded border border-gray-700/30 leading-snug break-words mt-0.5">
                                     {official.stanceConditionText || '无'}
                                 </div>
@@ -769,7 +776,7 @@ const OfficialCardInner = ({
                             )}
                         </>
                     ) : (
-                        <div className="text-xs text-gray-500 italic">无施政立场</div>
+                        <div className="text-xs text-gray-500 italic">无做事主张</div>
                     )}
                 </div>
             </div>

@@ -369,13 +369,13 @@ export const OFFICIAL_DRAWBACK_TYPES = {
         description: (val) => `腐败：税收损失 ${(val * 100).toFixed(0)}%`,
     },
 
-    // 派系冲突 - 联盟内部稳定度降低 (新增)
+    // 班底冲突 - 联盟内部稳定度降低 (新增)
     faction_conflict: {
         type: 'factionConflict',
         category: 'politics',
         valueRange: [0.01, 0.04],
         weight: 10,
-        description: (val) => `派系冲突：稳定度 -${(val * 100).toFixed(0)}%`,
+        description: (val) => `班底冲突：稳定度 -${(val * 100).toFixed(0)}%`,
     },
 
     // 资源浪费 (新增)
@@ -689,14 +689,14 @@ export const LOYALTY_CONFIG = {
     MAX: 100,
     MIN: 0,
 
-    // 政变触发条件
+    // 变乱触发条件
     COUP_THRESHOLD: 25,         // 忠诚度阈值
     COUP_DURATION_DAYS: 180,    // 需持续天数
 
     // 每日忠诚度变化率
     DAILY_CHANGES: {
-        stanceSatisfied: 0.40,      // 施政诉求满足（大幅提升，约30天+12）
-        stanceUnsatisfied: -0.30,   // 施政诉求不满足
+        stanceSatisfied: 0.40,      // 主张做到（大幅提升，约30天+12）
+        stanceUnsatisfied: -0.30,   // 主张没做到
         financialSatisfied: 0.30,   // 财务满意
         financialUncomfortable: -0.10, // 财务不适（降低惩罚）
         financialStruggling: -0.20, // 财务困难
@@ -714,14 +714,14 @@ export const LOYALTY_CONFIG = {
         execute: { loyalty: -80, coupChance: 0.60 },
     },
 
-    // 政变资格门槛（满足任一即可）
+    // 变乱资格门槛（满足任一即可）
     COUP_WEALTH_THRESHOLD: 30000,     // 财富分数
     COUP_PROPERTY_THRESHOLD: 3,       // 产业数量
     COUP_INFLUENCE_THRESHOLD: 0.15,   // 出身阶层影响力占比
 };
 
 // ========== 阶层效果偏好映射 ==========
-// 定义每个阶层出身的官员更倾向于生成哪些效果类型
+// 定义每个群体出身的官员更倾向于生成哪些效果类型
 // preferredEffects: 偏好的正面效果key列表 (权重翻倍)
 // preferredDrawbacks: 偏好的负面效果key列表 (权重翻倍)
 // preferredTargets: 偏好的目标 (建筑/资源/阶层) - 如果效果有targets，优先选择这些
@@ -1431,7 +1431,7 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
 
     // 可作为官员出身的阶层列表
     const eligibleStrata = [
-        'peasant', 'worker', // 新增：底层阶级也能出官员
+        'peasant', 'worker', // 新增：下层也能出官员
         'scribe', 'merchant', 'cleric', 'landowner',
         'engineer', 'artisan', 'soldier', 'navigator', 'capitalist'
     ];
@@ -1618,7 +1618,7 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     const salaryInfluenceBonus = (salary / 1250) * 0.05; // 每 1250 薪水 +5%
     const stratumInfluenceBonus = Math.min(0.25, baseInfluenceBonus + salaryInfluenceBonus); // 最高25%
 
-    // 7. 分配施政立场（优先分配，以便影响贪婪度）
+    // 7. 分配做事主张（优先分配，以便影响贪婪度）
     // 包含动态生成的条件，基于当前市场数据
     const stanceResult = assignPoliticalStance(sourceStratum, epoch, market);
 
@@ -1635,20 +1635,20 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
         greed += 0.1;
     }
 
-    // 施政立场修正：左派更清廉
+    // 做事主张修正：普惠更清廉
     // 越左越清廉 (spectrum: left -> 减少贪婪)
     const stanceInfo = getStanceInfo(stanceResult.stanceId);
     if (stanceInfo) {
         if (stanceInfo.spectrum === 'left') {
-            greed -= 0.25; // 左派显著降低贪婪
+            greed -= 0.25; // 普惠显著降低贪婪
 
-            // 极左派系额外降低
+            // 极左班底额外降低
             const radicalLeft = ['primitive_communism', 'marxism', 'anarchism', 'eco_socialism'];
             if (radicalLeft.includes(stanceInfo.id)) {
                 greed -= 0.2; // 极左几乎都是清教徒式的
             }
         }
-        // 右派稍微增加一点贪婪（更有利于资本/等级积累）
+        // 进取稍微增加一点贪婪（更有利于资本/等级积累）
         else if (stanceInfo.spectrum === 'right') {
             greed += 0.1;
         }
@@ -1705,7 +1705,7 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
         xp,
         xpToNextLevel,
         ambition, // 野心值
-        // 施政立场信息
+        // 做事主张信息
         politicalStance: stanceResult.stanceId,
         stanceConditionParams: stanceResult.conditionParams,
         stanceConditionText: stanceResult.conditionText,
@@ -1763,7 +1763,7 @@ export const POLICY_TRANSITION_EFFECTS = {
     from_private: {
         to_high_salary: {
             loyaltyPenalty: -15,      // 当事官员忠诚度惩罚
-            rightLoyaltyExtra: -10,   // 右派官员额外惩罚
+            rightLoyaltyExtra: -10,   // 进取官员额外惩罚
             confiscationOptions: ['compensate', 'force'], // 没收方式
             compensateRate: 0.5,      // 补偿价格 = 购入价 * 50%
         },
@@ -1777,7 +1777,7 @@ export const POLICY_TRANSITION_EFFECTS = {
     from_high_salary: {
         to_private: {
             loyaltyPenalty: -5,
-            leftLoyaltyExtra: -10,    // 左派官员额外惩罚
+            leftLoyaltyExtra: -10,    // 普惠官员额外惩罚
         },
         to_state_managed: {
             loyaltyPenalty: -3,

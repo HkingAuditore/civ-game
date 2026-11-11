@@ -3,6 +3,7 @@ import { Modal } from '../common/UnifiedUI';
 import { Icon } from '../common/UIComponents';
 import { BUILDINGS, RESOURCES, STRATA } from '../../config';
 import { POLITICAL_STANCES, POLITICAL_ISSUES } from '../../config/politicalStances';
+import { COMPLIANCE_FLAGS } from '../../config/complianceFlags';
 import { calculatePrestige, getPrestigeLevel } from '../../logic/officials/manager';
 import { LOYALTY_CONFIG, PROPERTY_POLICY_CONFIG } from '../../config/officials';
 import { formatNumberShortCN } from '../../utils/numberFormat';
@@ -45,7 +46,7 @@ const EFFECT_NAMES = {
     stratumInfluence: '阶层影响力',
     wartimeProduction: '战时生产',
     warProductionBonus: '战时生产',
-    factionConflict: '派系冲突',
+    factionConflict: '班底冲突',
     corruption: '腐败',
     corruptionMod: '腐败程度',
     resourceWaste: '资源浪费',
@@ -84,11 +85,11 @@ const getTargetDisplayName = (target) => {
     return target;
 };
 
-// 立场光谱配置
+// 性情底色配置
 const SPECTRUM_CONFIG = {
-    left: { bg: 'bg-red-900/40', border: 'border-red-500/60', text: 'text-red-300', label: '左派', icon: 'Users' },
-    center: { bg: 'bg-blue-900/40', border: 'border-blue-500/60', text: 'text-blue-300', label: '建制派', icon: 'Scale' },
-    right: { bg: 'bg-amber-900/40', border: 'border-amber-500/60', text: 'text-amber-300', label: '右派', icon: 'TrendingUp' },
+    left: { bg: 'bg-red-900/40', border: 'border-red-500/60', text: 'text-red-300', label: '普惠', icon: 'Users' },
+    center: { bg: 'bg-blue-900/40', border: 'border-blue-500/60', text: 'text-blue-300', label: '稳健', icon: 'Scale' },
+    right: { bg: 'bg-amber-900/40', border: 'border-amber-500/60', text: 'text-amber-300', label: '进取', icon: 'TrendingUp' },
 };
 
 export const OfficialDetailModal = ({
@@ -242,7 +243,7 @@ export const OfficialDetailModal = ({
     const prestige = calculatePrestige(official, currentDay);
     const prestigeInfo = getPrestigeLevel(prestige);
 
-    // 施政立场
+    // 做事主张
     const stanceData = official?.politicalStance || {};
     const stance = POLITICAL_STANCES[stanceData.stanceId || stanceData];
     const stanceSpectrum = stance?.spectrum || 'center';
@@ -318,8 +319,8 @@ export const OfficialDetailModal = ({
         // 优先使用模拟端计算好的数据
         if (official?.loyaltyChangeFactors && Array.isArray(official.loyaltyChangeFactors)) {
             const factorTextMap = {
-                'stanceSatisfied': '施政诉求满足',
-                'stanceUnsatisfied': '施政诉求未满足',
+                'stanceSatisfied': '主张做到',
+                'stanceUnsatisfied': '主张没做到',
                 'financialSatisfied': '财务状况良好',
                 'financialUncomfortable': '生活拮据',
                 'financialStruggling': '入不敷出',
@@ -341,11 +342,11 @@ export const OfficialDetailModal = ({
         const reasons = [];
         const { DAILY_CHANGES } = LOYALTY_CONFIG;
 
-        // 施政诉求
+        // 做事主张
         if (isStanceSatisfied === true) {
-            reasons.push({ text: '施政诉求满足', value: DAILY_CHANGES.stanceSatisfied, positive: true });
+            reasons.push({ text: '主张做到', value: DAILY_CHANGES.stanceSatisfied, positive: true });
         } else if (isStanceSatisfied === false) {
-            reasons.push({ text: '施政诉求未满足', value: DAILY_CHANGES.stanceUnsatisfied, positive: false });
+            reasons.push({ text: '主张没做到', value: DAILY_CHANGES.stanceUnsatisfied, positive: false });
         }
 
         // 财务状况
@@ -402,7 +403,7 @@ export const OfficialDetailModal = ({
     const tabs = [
         { id: 'overview', label: '概览', icon: 'BarChart2' },
         { id: 'economy', label: '产业与财务', icon: 'Briefcase' },
-        { id: 'politics', label: '施政立场', icon: 'Flag' },
+        ...(COMPLIANCE_FLAGS.hideOfficialStance ? [] : [{ id: 'politics', label: '做事主张', icon: 'Flag' }]),
     ];
 
     // 效果好坏判断函数（复用于Tab1）
@@ -415,7 +416,7 @@ export const OfficialDetailModal = ({
     ];
     const getEffectStatus = (t, v) => negativeIsGoodTypes.includes(t) ? v < 0 : v > 0;
 
-    // 立场效果渲染辅助
+    // 主张效果渲染辅助
     const renderStanceEffectBadges = (effects, isActive) => {
         if (!effects || Object.keys(effects).length === 0) return null;
         return Object.entries(effects).flatMap(([key, val]) => {
@@ -892,12 +893,12 @@ export const OfficialDetailModal = ({
                     </div>
                 )}
 
-                {/* Tab3: 施政立场 */}
+                {/* Tab3: 做事主张 */}
                 {activeTab === 'politics' && (
                     <div className="space-y-3">
                         {stance ? (
                             <div className={`rounded-lg border ${spectrumStyle.border} ${spectrumStyle.bg} p-3`}>
-                                {/* 立场名称 + 状态 */}
+                                {/* 主张名称 + 状态 */}
                                 <div className="flex items-center gap-2 mb-2">
                                     <Icon name={stance.icon || 'Flag'} size={16} className={spectrumStyle.text} />
                                     <span className="text-sm font-bold text-gray-100">{stance.name}</span>
@@ -908,7 +909,7 @@ export const OfficialDetailModal = ({
                                     )}
                                 </div>
 
-                                {/* 施政议题 */}
+                                {/* 在意的事 */}
                                 {stance.issues && stance.issues.length > 0 && (
                                     <div className="flex flex-wrap gap-1 mb-2">
                                         {stance.issues.map(issueId => {
@@ -953,7 +954,7 @@ export const OfficialDetailModal = ({
                         ) : (
                             <div className="rounded-lg border border-gray-700/50 bg-gray-900/40 p-6 text-center">
                                 <Icon name="Flag" size={24} className="text-gray-600 mx-auto mb-2" />
-                                <div className="text-sm text-gray-500">该官员无施政立场</div>
+                                <div className="text-sm text-gray-500">该官员无做事主张</div>
                             </div>
                         )}
                     </div>

@@ -203,7 +203,7 @@ export const TECHS = [
     {
         id: 'culinary_arts',
         name: "烹饪艺术",
-        desc: "解锁烹饪坊，将粮食加工为珍馐，满足上层阶级的饮食需求。",
+        desc: "解锁烹饪坊，将粮食加工为珍馐，满足上层的饮食需求。",
         cost: { science: 1680 },
         epoch: 2,
         prerequisites: ['road_system'],
@@ -221,7 +221,7 @@ export const TECHS = [
     {
         id: 'carpentry',
         name: "精细木工",
-        desc: "解锁家具工坊，将木材与石料加工为精美家具，提升上层阶级的生活品质。",
+        desc: "解锁家具工坊，将木材与石料加工为精美家具，提升上层的生活品质。",
         cost: { science: 1750 },
         epoch: 2,
         prerequisites: ['advanced_weaving'],

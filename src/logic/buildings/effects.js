@@ -73,7 +73,7 @@ export const applyEffects = (effects, bonuses) => {
     }
 
     // buildingProductionMod - 同 buildings 的处理方式
-    // 用于体制效果和事件效果的建筑产出修正
+    // 用于格局效果和事件效果的建筑产出修正
     if (effects.buildingProductionMod) {
         Object.entries(effects.buildingProductionMod).forEach(([idOrCat, percent]) => {
             if (!idOrCat || typeof percent !== 'number') return;
@@ -255,7 +255,7 @@ export const applyDecreeEffects = (decrees, bonuses) => {
 /**
  * Apply polity effects
  * 根据当前体制类型应用效果
- * @param {Object} polityEffects - 体制效果对象
+ * @param {Object} polityEffects - 格局效果对象
  * @param {Object} bonuses - Bonus structures to modify
  */
 export const applyPolityEffects = (polityEffects, bonuses) => {

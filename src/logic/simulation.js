@@ -1162,7 +1162,7 @@ export const simulateTick = ({
     bonuses.legitimacyBonus = activeOfficialEffects.legitimacyBonus || 0;
     // 组织度增长修正（负值降低增长）
     bonuses.organizationGrowthMod = (bonuses.organizationGrowthMod || 0) + (activeOfficialEffects.organizationDecay || 0);
-    // 派系冲突 ?稳定度惩?
+    // 班底冲突 ?稳定度惩?
     bonuses.factionConflict = (bonuses.factionConflict || 0) + (activeOfficialEffects.factionConflict || 0);
     // 外交冷却修正
     bonuses.diplomaticCooldown = activeOfficialEffects.diplomaticCooldown || 0;
@@ -1173,7 +1173,7 @@ export const simulateTick = ({
     // 生产原料成本修正 ?存储供建筑生产计算使?
     bonuses.officialProductionInputCost = activeOfficialEffects.productionInputCost || {};
 
-    // === 应用施政立场效果 ===
+    // === 应用做事主张效果 ===
     // 构建简化的游戏状态用于条件检?
     const stanceCheckState = {
         classApproval: previousApproval,
@@ -1193,7 +1193,7 @@ export const simulateTick = ({
     const stanceResult = getAggregatedStanceEffects(officials, stanceCheckState);
     const stanceEffects = stanceResult.aggregatedEffects;
 
-    // 应用立场效果?bonuses
+    // 应用主张效果?bonuses
     if (stanceEffects.stability) {
         bonuses.stabilityBonus = (bonuses.stabilityBonus || 0) + stanceEffects.stability;
     }
@@ -1247,9 +1247,9 @@ export const simulateTick = ({
     if (stanceEffects.diplomaticBonus) {
         bonuses.diplomaticBonus = (bonuses.diplomaticBonus || 0) + stanceEffects.diplomaticBonus;
     }
-    // 立场满意度效果存储供后续使用
+    // 主张满意度效果存储供后续使用
     bonuses.stanceApprovalEffects = stanceEffects.approval || {};
-    // 立场生产成本效果存储供后续使?
+    // 主张生产成本效果存储供后续使?
     bonuses.stanceProductionInputCost = stanceEffects.productionInputCost || {};
 
     // === 部长任命加成 ===
@@ -1388,7 +1388,7 @@ export const simulateTick = ({
     }
 
     // Apply Polity Effects (Government Type Bonuses)
-    // 根据当前联盟计算体制，并应用体制效果
+    // 根据当前联盟计算体制，并应用格局效果
     // Use previous tick data to avoid circular dependency and TDZ issues
     let currentPolityEffects = null;
     if (rulingCoalition && rulingCoalition.length > 0) {
@@ -1633,7 +1633,7 @@ export const simulateTick = ({
             const marketPrice = getPrice(resource);
 
             // [NEW] 价格管制检查（出售侧）：政府保底收购或收超额利润税
-            // 只有左派主导且启用时才生?
+            // 只有普惠班底主导且启用时才生?
             const leftFactionDominant = cabinetStatus?.dominance?.panelType === 'plannedEconomy';
             const priceControlActive = leftFactionDominant && priceControls?.enabled && priceControls.governmentBuyPrices?.[resource] !== undefined;
 
@@ -2799,12 +2799,12 @@ export const simulateTick = ({
         let inputCostPerMultiplier = 0;
         let isInLowEfficiencyMode = false;
 
-        // === 应用生产成本修正（官员效?+ 施政立场效果?===
+        // === 应用生产成本修正（官员效?+ 做事主张效果?===
         // 只对?input 且有 output 的建筑生效（加工类建筑）
         const hasInput = Object.keys(effectiveOps.input).length > 0;
         const hasOutput = Object.keys(effectiveOps.output).some(k => k !== 'maxPop' && k !== 'militaryCapacity');
         if (hasInput && hasOutput) {
-            // 合并官员效果和施政立场效?
+            // 合并官员效果和做事主张效?
             const officialInputCostMod = bonuses.officialProductionInputCost?.[b.id] || 0;
             const stanceInputCostMod = bonuses.stanceProductionInputCost?.[b.id] || 0;
             // V2: 理念建筑消耗修正（按建筑分类 scope）
@@ -4243,7 +4243,7 @@ export const simulateTick = ({
             if (isTradableResource(resKey)) {
                 const marketPrice = getPrice(resKey);
 
-                // [NEW] 价格管制检查：只有左派主导且启用时才生?
+                // [NEW] 价格管制检查：只有普惠班底主导且启用时才生?
                 const leftFactionDominant = cabinetStatus?.dominance?.panelType === 'plannedEconomy';
                 const priceControlActive = leftFactionDominant && priceControls?.enabled && priceControls.governmentSellPrices?.[resKey] !== undefined && priceControls.governmentSellPrices[resKey] !== null;
 
@@ -5221,7 +5221,7 @@ export const simulateTick = ({
         let newLoyalty = normalizedOfficial.loyalty ?? 75; // 默认值兼容旧存档
         let newLowLoyaltyDays = normalizedOfficial.lowLoyaltyDays ?? 0;
 
-        // 施政诉求满足程度
+        // 群体诉求满足程度
         // 注意：politicalStance 可能是字符串（stanceId）或对象，需要兼容两种情?
         const stanceId = typeof normalizedOfficial.politicalStance === 'string'
             ? normalizedOfficial.politicalStance
@@ -5268,7 +5268,7 @@ export const simulateTick = ({
         const loyaltyChangeFactors = [];
         let totalLoyaltyChange = 0;
 
-        // 施政诉求
+        // 群体诉求
         const stanceChange = isStanceMet ? DAILY_CHANGES.stanceSatisfied : DAILY_CHANGES.stanceUnsatisfied;
         newLoyalty += stanceChange;
         totalLoyaltyChange += stanceChange;
@@ -5571,7 +5571,7 @@ export const simulateTick = ({
         }
 
         // [NEW] 累积税收冲击机制：防?快速抬税后降税"的漏?
-        // 原理：民众对被剥削的记忆不会因税率降低而立即消?
+        // 原理：民众对负担过重的记忆不会因税率降低而立即消退
         // - 当前冲击会累加到历史累积?
         // - 历史累积值每tick衰减一定比例（模拟愤怒逐渐平息?
         // - 最终惩罚取当前冲击和累积冲击的较大?
@@ -6500,7 +6500,7 @@ export const simulateTick = ({
             next.relation = Math.min(100, Math.max(0, (next.relation ?? 50) - dailyPenalty));
         }
 
-        // 应用官员和施政立场的外交加成到玩家与AI的关?
+        // 应用官员和做事主张的外交加成到玩家与AI的关?
         if (!isExpiredNation && bonuses.diplomaticBonus && !next.isRebelNation && !next.isAtWar) {
             // On hard: improving is harder
             const dailyBonus = (bonuses.diplomaticBonus / 30) * relationMultipliers.good;
@@ -8359,7 +8359,7 @@ export const simulateTick = ({
     // 用作 netIncomePerCapita 的分母，避免高粮价/补贴等业主收入被全阶层 pop 稀释。
     // 复用生产循环中已写入的 buildingFinancialData[*].filledByRole（simulation.js:2666）。
     // 场景：farm jobs={peasant:3} 且 owner=peasant → 业主收入入 roleWagePayout[peasant]，
-    //   但失业 peasant 与在岗 peasant 同属一个阶层池子，按总 pop 均摊会让"有效收入信号"
+    //   但失业 peasant 与在岗 peasant 同属一个群体池子，按总 pop 均摊会让"有效收入信号"
     //   显著低于在岗者实际所得，导致迁移决策低估 peasant 吸引力。
     const employedPopByRole = {};
     Object.values(buildingFinancialData || {}).forEach((finance) => {
@@ -9706,7 +9706,7 @@ export const simulateTick = ({
                 // 阶层财富增长对需求的影响（财富越高需求越高）
                 // 阶层财富增长对需求的影响（财富越高需求越高）
                 stratumWealthMultiplier: stratumWealthMultipliers,
-                // 建筑原料消耗修正（官员效果 + 施政立场效果，累加合并）
+                // 建筑原料消耗修正（官员效果 + 做事主张效果，累加合并）
                 productionInputCost: _mergedProductionInputCost,
                 // 战争经济：建筑战损统计和前线产出惩罚
                 warDamagedBuildings: warDamagedBuildings || {},

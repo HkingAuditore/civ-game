@@ -52,7 +52,7 @@ export const formatEffect = (type, target, value) => {
         case 'taxIncome': description = `税收加成 ${pct(value)}`; break;
         case 'taxBonus': description = `税收加成 ${pct(value)}`; break;
 
-        // 立场产出（采集/工业产出，源自施政立场聚合）
+        // 主张产出（采集/工业产出，源自做事主张聚合）
         case 'gatherBonus': description = `采集产出 ${pct(value)}`; break;
         case 'industryBonus': description = `工业产出 ${pct(value)}`; break;
 
@@ -104,8 +104,8 @@ export const formatEffect = (type, target, value) => {
         // 资源浪费
         case 'resourceWaste': isGood = value < 0; description = `${targetName || '资源'}浪费 ${pct(value)}`; break;
 
-        // 派系冲突
-        case 'factionConflict': isGood = value < 0; description = `派系冲突 ${value > 0 ? '-' : '+'}${(Math.abs(value) * 100).toFixed(0)}%稳定`; break;
+        // 班底冲突
+        case 'factionConflict': isGood = value < 0; description = `班底冲突 ${value > 0 ? '-' : '+'}${(Math.abs(value) * 100).toFixed(0)}%稳定`; break;
 
         // 腐败
         case 'corruption': isGood = value < 0; description = `腐败 ${value > 0 ? '-' : '+'}${(Math.abs(value) * 100).toFixed(0)}%税收`; break;

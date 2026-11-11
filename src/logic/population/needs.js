@@ -49,7 +49,7 @@ export const processNeedsConsumption = ({
     availableResources = null,  // 已建成产出建筑可稳定供给的资源集合
     potentialResources = null,  // 兼容旧调用
     priceControls = null,       // 政府价格管制设置
-    leftFactionDominant = false, // 是否左派主导（只有左派主导时价格管制才生效）
+    leftFactionDominant = false, // 是否普惠班底主导（只有普惠班底主导时价格管制才生效）
     difficulty = 'normal',
     onTreasuryChange,
 }) => {
@@ -104,7 +104,7 @@ export const processNeedsConsumption = ({
         const consumptionMultiplier = calculateWealthMultiplier(incomeRatio, wealthRatio, def.wealthElasticity || 1.0, maxConsumptionMultiplier);
 
         // 解锁能力（不受阶层上限限制，统一上限10）：用于判断是否能解锁奢侈品需求
-        // 这样即使底层阶级（上限3）只要足够富裕也能解锁高级奢侈品，只是购买量受限
+        // 这样即使下层（上限3）只要足够富裕也能解锁高级奢侈品，只是购买量受限
         const unlockMultiplier = calculateWealthMultiplier(incomeRatio, wealthRatio, def.wealthElasticity || 1.0, 10);
 
         const livingStandardLevel = getSimpleLivingStandard(incomeRatio).level;

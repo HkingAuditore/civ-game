@@ -1,6 +1,6 @@
 /**
  * 内阁协同度显示组件
- * 显示协同度进度条、派系分布和主导状态
+ * 显示协同度进度条、班底分布和主导状态
  */
 
 import React from 'react';
@@ -39,15 +39,15 @@ const SynergyBar = ({ synergy, level }) => {
 };
 
 /**
- * 派系分布饼图
+ * 班底分布饼图
  */
 const FactionDistribution = ({ distribution, total }) => {
     if (total === 0) return null;
 
     const factions = [
-        { id: 'left', name: '左派', color: 'bg-red-500', textColor: 'text-red-400' },
-        { id: 'center', name: '中间', color: 'bg-blue-500', textColor: 'text-blue-400' },
-        { id: 'right', name: '右派', color: 'bg-amber-500', textColor: 'text-amber-400' },
+        { id: 'left', name: '普惠', color: 'bg-red-500', textColor: 'text-red-400' },
+        { id: 'center', name: '稳健', color: 'bg-blue-500', textColor: 'text-blue-400' },
+        { id: 'right', name: '进取', color: 'bg-amber-500', textColor: 'text-amber-400' },
     ];
 
     return (
@@ -69,7 +69,7 @@ const FactionDistribution = ({ distribution, total }) => {
 };
 
 /**
- * 主导派系标识
+ * 主导班底标识
  */
 const DominanceIndicator = ({ dominance }) => {
     if (!dominance) return null;
@@ -187,10 +187,10 @@ export const CabinetSynergyDisplay = ({
             {/* 协同度条 */}
             <SynergyBar synergy={synergy} level={level} />
 
-            {/* 派系分布 */}
+            {/* 班底分布 */}
             <FactionDistribution distribution={distribution} total={total} />
 
-            {/* 主导派系 */}
+            {/* 主导班底 */}
             {dominance && <DominanceIndicator dominance={dominance} />}
 
             {/* 效果显示 */}

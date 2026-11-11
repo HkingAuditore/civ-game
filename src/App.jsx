@@ -626,7 +626,7 @@ function GameApp({ gameState }) {
         }
         if (ideologyReward > 0 && typeof gameState.setIdeologyScore === 'function') {
             gameState.setIdeologyScore(prev => (prev || 0) + ideologyReward);
-            addLog(`⚡ 年度施政报告获评 ${reportGrade} 级，获得 ${ideologyReward} 点理念分。`);
+            addLog(`⚡ 年度经营报告获评 ${reportGrade} 级，获得 ${ideologyReward} 点理念分。`);
         }
         // Save current snapshot as next year's baseline
         const newBaseline = collectAnnualSnapshot(gameState);
@@ -1956,7 +1956,7 @@ function GameApp({ gameState }) {
                                                 onToggleMinisterAutoExpansion={actions.toggleMinisterAutoExpansion}
                                                 resources={gameState.resources}
 
-                                                // [NEW] 传递施政立场检查所需的上下文
+                                                // [NEW] 传递做事主张检查所需的上下文
                                                 stanceContext={{
                                                     classApproval: gameState.classApproval,
                                                     classInfluence: gameState.classInfluence,

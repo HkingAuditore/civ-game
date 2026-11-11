@@ -361,10 +361,10 @@ export const DECREE_COMBINATIONS = {
     },
     {
       decrees: ['land_reform', 'equality_decree', 'welfare_system'],
-      name: "社会革命",
+      name: "全面改革",
       bonus: { classApproval: { peasant: 40, worker: 35 }, stability: 20, populationGrowth: 0.3 },
       penalty: { classApproval: { landowner: -50 }, passive: { silver: -8 } },
-      desc: "彻底的社会改革重塑阶级结构",
+      desc: "彻底的社会改革重塑各群体格局",
     },
     {
       decrees: ['guild_charter', 'apprentice_system', 'patent_law'],
@@ -390,7 +390,7 @@ export const DECREE_COMBINATIONS = {
     },
     {
       decrees: ['equality_decree', 'feudal_privileges'],
-      name: "阶级冲突",
+      name: "利益冲突",
       penalty: { stability: -30, production: -0.2 },
       desc: "平等与特权政策引发严重冲突",
     },

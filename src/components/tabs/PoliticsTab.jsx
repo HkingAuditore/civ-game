@@ -19,15 +19,15 @@ const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
 // 定义阶层分组，用于UI显示
 const STRATA_GROUPS = {
     upper: {
-        name: '上流阶级',
+        name: '上层',
         keys: ['merchant', 'official', 'landowner', 'capitalist', 'engineer', 'scientist'],
     },
     middle: {
-        name: '中产阶级',
+        name: '中层',
         keys: ['artisan', 'soldier', 'cleric', 'scribe', 'navigator', 'technician'],
     },
     lower: {
-        name: '底层阶级',
+        name: '下层',
         keys: ['unemployed', 'peasant', 'worker', 'miner', 'serf', 'lumberjack', 'slave'],
     },
 };
